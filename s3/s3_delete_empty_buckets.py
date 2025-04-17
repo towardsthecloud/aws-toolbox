@@ -3,7 +3,7 @@ This script searches for empty S3 buckets without versioning enabled and optiona
 It includes a dry run mode for safe testing.
 
 Author: Danny Steenman
-Original source: https://github.com/dannysteenman/aws-toolbox
+Original source: https://github.com/towardsthecloud/aws-toolbox
 License: MIT
 """
 

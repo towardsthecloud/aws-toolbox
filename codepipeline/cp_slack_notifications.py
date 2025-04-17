@@ -1,4 +1,4 @@
-#  https://github.com/dannysteenman/aws-toolbox
+#  https://github.com/towardsthecloud/aws-toolbox
 #
 # This script can be used in a lambda to enable AWS CodePipeline notifications on slack in a specific channel.
 

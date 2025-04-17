@@ -1,4 +1,4 @@
-#  https://github.com/dannysteenman/aws-toolbox
+#  https://github.com/towardsthecloud/aws-toolbox
 #
 # This script deletes iam users
 

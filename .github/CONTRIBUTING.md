@@ -1,6 +1,6 @@
 # Contribution Guidelines
 
-Thank you for your interest in contributing to the [AWS Toolbox.](https://github.com/dannysteenman/aws-toolbox)
+Thank you for your interest in contributing to the [AWS Toolbox.](https://github.com/towardsthecloud/aws-toolbox)
 
 Please read through this document before submitting any issues or pull requests to ensure we have all the necessary information to effectively respond to your issue or contribution.
 
@@ -8,7 +8,7 @@ Please read through this document before submitting any issues or pull requests 
 
 We welcome you to use the GitHub issue tracker to report bugs or suggest features.
 
-When filing an issue, please check [existing open](https://github.com/dannysteenman/aws-toolbox/issues), or [recently closed](https://github.com/dannysteenman/aws-toolbox/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20), issues to make sure somebody else hasn't already reported the issue. Please try to include as much information as you can.
+When filing an issue, please check [existing open](https://github.com/towardsthecloud/aws-toolbox/issues), or [recently closed](https://github.com/towardsthecloud/aws-toolbox/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20), issues to make sure somebody else hasn't already reported the issue. Please try to include as much information as you can.
 
 ## Contributing new scripts via Pull Requests
 
@@ -21,7 +21,7 @@ Contributions via pull requests are much appreciated. Before sending us a pull r
 To send us a pull request, please:
 
 1. Fork the repository.
-2. Modify the source, focusing on the specific change you are contributing. 
+2. Modify the source, focusing on the specific change you are contributing.
 3. Reformat all the code, for Python scripts we use Black and for linting we use Flake8 with the following arguments: "--ignore=E203,E266,E501,F401,W503"
 4. If you commit and push the changes in your fork it will automatically trigger a linter action in GitHub Actions to validate the change.
 5. Commit to your fork using clear commit messages.
@@ -46,4 +46,4 @@ We want to keep the quality of the scripts in our list as high as possible. In m
 
 ## Licensing
 
-See the [LICENSE](https://github.com/dannysteenman/aws-toolbox/blob/main/LICENSE) file for our project's licensing. We will ask you to confirm the licensing of your contribution.
+See the [LICENSE](https://github.com/towardsthecloud/aws-toolbox/blob/main/LICENSE) file for our project's licensing. We will ask you to confirm the licensing of your contribution.

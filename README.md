@@ -1,4 +1,4 @@
-# [![AWS Toolbox header](./icons/github-header-image.png)](https://towardsthecloud.com)
+# [![AWS Toolbox header](./icons/github-title-banner.png)](https://towardsthecloud.com)
 
 # AWS Toolbox 🧰
 
@@ -116,15 +116,15 @@ This section lists tools that enhance AWS usage across console, CLI, and APIs.
 - [IAM Zero](https://iamzero.dev) - Automated least-privilege policy suggestion tool.
 
 ### Infrastructure as Code
-- [AWS CDK Starterkit](https://github.com/dannysteenman/aws-cdk-starterkit) - Rapid AWS CDK app deployment via GitHub actions.
-- [AWS CloudFormation Starterkit](https://github.com/dannysteenman/aws-cloudformation-starterkit) - Rapid AWS CloudFormation stack deployment via GitHub actions.
+- [AWS CDK Starterkit](https://github.com/towardsthecloud/aws-cdk-starterkit) - Rapid AWS CDK app deployment via GitHub actions.
+- [AWS CloudFormation Starterkit](https://github.com/towardsthecloud/aws-cloudformation-starterkit) - Rapid AWS CloudFormation stack deployment via GitHub actions.
 - [Awesome CDK](https://github.com/kolomied/awesome-cdk) - Curated list of AWS CDK resources.
 - [Awesome CloudFormation](https://github.com/aws-cloudformation/awesome-cloudformation) - Curated CloudFormation resources.
 - [Awesome Terraform](https://github.com/shuaibiyy/awesome-terraform) - Curated Terraform resources.
 - [Former2](https://github.com/iann0036/former2) - Template generator from existing AWS resources.
 - [Open CDK Guide](https://github.com/kevinslin/open-cdk) - Opinionated AWS CDK best practices guide.
-- [VSCode IAM Actions Snippets](https://github.com/dannysteenman/vscode-iam-actions-snippets) - Adds autocompletion in VS Code for AWS IAM policy actions.
-- [VSCode IAM Service Principal Snippets](https://github.com/dannysteenman/vscode-iam-service-principal-snippets) - Adds autocompletion in VS Code for AWS service principals.
+- [VSCode IAM Actions Snippets](https://github.com/towardsthecloud/vscode-iam-actions-snippets) - Adds autocompletion in VS Code for AWS IAM policy actions.
+- [VSCode IAM Service Principal Snippets](https://github.com/towardsthecloud/vscode-iam-service-principal-snippets) - Adds autocompletion in VS Code for AWS service principals.
 - [VSCode CDK Snippets](https://marketplace.visualstudio.com/items?itemName=dannysteenman.cdk-snippets) - VS Code extension for CDK construct snippets.
 - [VSCode CloudFormation Snippets](https://marketplace.visualstudio.com/items?itemName=dannysteenman.cloudformation-yaml-snippets) - VS Code extension for CloudFormation resource snippets.
 - [VSCode SAM Snippets](https://marketplace.visualstudio.com/items?itemName=dannysteenman.sam-snippets) - VS Code extension for CloudFormation resource snippets.
@@ -158,13 +158,13 @@ This section lists tools that enhance AWS usage across console, CLI, and APIs.
 ## Contributors
 This project exists thanks to all the people who contribute.
 
-[![Code Contributors](https://contrib.rocks/image?repo=dannysteenman/aws-toolbox)](https://github.com/dannysteenman/aws-toolbox/graphs/contributors)
+[![Code Contributors](https://contrib.rocks/image?repo=dannysteenman/aws-toolbox)](https://github.com/towardsthecloud/aws-toolbox/graphs/contributors)
 
-See how you can [contribute to this repository.](https://github.com/dannysteenman/aws-toolbox/blob/main/.github/CONTRIBUTING.md)
+See how you can [contribute to this repository.](https://github.com/towardsthecloud/aws-toolbox/blob/main/.github/CONTRIBUTING.md)
 
 ## Author
 [Danny Steenman](https://towardsthecloud.com/about)
 
-[![](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/dannysteenman)
+[![](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/towardsthecloud)
 [![](https://img.shields.io/badge/X-000000?style=for-the-badge&logo=x&logoColor=white)](https://twitter.com/dannysteenman)
-[![](https://img.shields.io/badge/GitHub-2b3137?style=for-the-badge&logo=github&logoColor=white)](https://github.com/dannysteenman)
+[![](https://img.shields.io/badge/GitHub-2b3137?style=for-the-badge&logo=github&logoColor=white)](https://github.com/towardsthecloud)

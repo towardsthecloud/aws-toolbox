@@ -1,5 +1,5 @@
 """
-# https://github.com/dannysteenman/aws-toolbox
+# https://github.com/towardsthecloud/aws-toolbox
 #
 # License: MIT
 #
