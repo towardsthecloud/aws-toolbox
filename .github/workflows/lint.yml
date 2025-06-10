@@ -10,19 +10,20 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v1
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: 3.8
+          python-version: 3.12
 
-      - name: Install Python dependencies
-        run: pip install black flake8
+      - name: Install mypy and types
+        run: uv pip install mypy 'types-boto3[full]'
 
-      - name: Run linters
-        uses: wearerequired/lint-action@v1
+      - name: Run Ruff (linting and formatting)
+        uses: astral-sh/ruff-action@v1
         with:
-          black: true
-          flake8: true
-          flake8_args: '--ignore=E203,E266,E501,F401,W503'
+          args: check --output-format=github --line-length=120
+
+      - name: Run mypy (type checking)
+        run: mypy .
