@@ -37,7 +37,6 @@ def fetch_log_groups_with_creation_dates():
 
             # Calculate the age of the log group
             age_delta = datetime.now() - creation_date
-            age_human_readable = f"{age_delta.days} days" if age_delta.days > 0 else "less than a day"
 
             # Append the extracted information to the list
             log_groups_info.append((log_group_name, creation_date, age_delta.days))

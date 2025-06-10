@@ -10,6 +10,20 @@ We welcome you to use the GitHub issue tracker to report bugs or suggest feature
 
 When filing an issue, please check [existing open](https://github.com/towardsthecloud/aws-toolbox/issues), or [recently closed](https://github.com/towardsthecloud/aws-toolbox/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20), issues to make sure somebody else hasn't already reported the issue. Please try to include as much information as you can.
 
+## Development Environment Setup
+
+Before contributing, please set up your development environment:
+
+1. **Install dependencies**: Install the required Python packages from the root of the repository:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Install VSCode Extension**: For better boto3 code completion and type checking, install the [AWS boto3 VSCode extension](https://marketplace.visualstudio.com/items?itemName=Boto3typed.boto3-ide). This extension provides:
+   - IntelliSense and type checking for all boto3 services
+   - Code completion for AWS API methods and parameters
+   - Better error detection and linting feedback
+
 ## Contributing new scripts via Pull Requests
 
 Contributions via pull requests are much appreciated. Before sending us a pull request, please ensure that:

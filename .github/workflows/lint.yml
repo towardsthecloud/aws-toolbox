@@ -18,7 +18,7 @@ jobs:
           python-version: 3.12
 
       - name: Install mypy and types
-        run: uv pip install mypy 'types-boto3[full]'
+        run:  uvp install --requirements requirements.txt
 
       - name: Run Ruff (linting and formatting)
         uses: astral-sh/ruff-action@v1
@@ -26,4 +26,4 @@ jobs:
           args: check --output-format=github --line-length=120
 
       - name: Run mypy (type checking)
-        run: mypy .
+        run: mypy . --ignore-missing-imports

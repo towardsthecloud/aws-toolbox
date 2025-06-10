@@ -6,8 +6,6 @@
 
 import boto3
 import datetime
-from time import mktime
-
 
 client = boto3.client("s3")
 response = client.list_objects(Bucket="angularbuildbucket")

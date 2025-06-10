@@ -1,0 +1,7 @@
+boto3
+botocore
+mypy
+types-boto3-full
+tabulate
+types-tabulate
+inquirer

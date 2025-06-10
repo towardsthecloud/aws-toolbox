@@ -19,20 +19,21 @@ Author: Danny Steenman
 License: MIT
 """
 
-import boto3
-import inquirer
 import sys
 import time
-from typing import List, Dict
+from typing import Dict, List, Optional
+
+import boto3
+import inquirer
 from botocore.exceptions import ClientError, NoCredentialsError
 
 
 class SageMakerUserProfileManager:
-    def __init__(self, region_name: str = None):
+    def __init__(self, region_name: Optional[str] = None):
         """Initialize the SageMaker client."""
         try:
             self.session = boto3.Session()
-            self.sagemaker = self.session.client('sagemaker', region_name=region_name)
+            self.sagemaker = self.session.client("sagemaker", region_name=region_name)
             self.region = region_name or self.session.region_name
             print(f"Connected to SageMaker in region: {self.region}")
         except NoCredentialsError:
@@ -45,10 +46,10 @@ class SageMakerUserProfileManager:
     def list_domains(self) -> List[Dict]:
         """List all SageMaker Studio domains."""
         try:
-            paginator = self.sagemaker.get_paginator('list_domains')
+            paginator = self.sagemaker.get_paginator("list_domains")
             domains = []
             for page in paginator.paginate():
-                domains.extend(page.get('Domains', []))
+                domains.extend(page.get("Domains", []))
             return domains
         except ClientError as e:
             print(f"Error listing domains: {str(e)}")
@@ -57,10 +58,10 @@ class SageMakerUserProfileManager:
     def list_user_profiles_in_domain(self, domain_id: str) -> List[Dict]:
         """List all user profiles in a specific domain."""
         try:
-            paginator = self.sagemaker.get_paginator('list_user_profiles')
+            paginator = self.sagemaker.get_paginator("list_user_profiles")
             user_profiles = []
             for page in paginator.paginate(DomainIdEquals=domain_id):
-                user_profiles.extend(page.get('UserProfiles', []))
+                user_profiles.extend(page.get("UserProfiles", []))
             return user_profiles
         except ClientError as e:
             print(f"Error listing user profiles in domain {domain_id}: {str(e)}")
@@ -78,26 +79,26 @@ class SageMakerUserProfileManager:
         print(f"Found {len(domains)} domain(s). Scanning for user profiles...")
 
         for domain in domains:
-            domain_id = domain['DomainId']
-            domain_name = domain.get('DomainName', 'Unknown')
+            domain_id = domain["DomainId"]
+            domain_name = domain.get("DomainName", "Unknown")
             print(f"Checking domain: {domain_name} ({domain_id})")
 
             user_profiles = self.list_user_profiles_in_domain(domain_id)
 
             for profile in user_profiles:
-                profile_name = profile['UserProfileName']
-                profile_status = profile.get('Status', 'Unknown')
+                profile_name = profile["UserProfileName"]
+                profile_status = profile.get("Status", "Unknown")
 
                 profile_info = {
-                    'domain_id': domain_id,
-                    'domain_name': domain_name,
-                    'user_profile_name': profile_name,
-                    'status': profile_status,
-                    'creation_time': profile.get('CreationTime', 'Unknown'),
+                    "domain_id": domain_id,
+                    "domain_name": domain_name,
+                    "user_profile_name": profile_name,
+                    "status": profile_status,
+                    "creation_time": profile.get("CreationTime", "Unknown"),
                 }
 
                 # Only include profiles that are not being deleted
-                if profile_status not in ['Deleting', 'Delete_Failed']:
+                if profile_status not in ["Deleting", "Delete_Failed"]:
                     all_profiles.append(profile_info)
                     print(f"Found user profile: {profile_name} - Status: {profile_status}")
 
@@ -106,10 +107,10 @@ class SageMakerUserProfileManager:
     def list_apps_for_user_profile(self, domain_id: str, user_profile_name: str) -> List[Dict]:
         """List all apps for a specific user profile."""
         try:
-            paginator = self.sagemaker.get_paginator('list_apps')
+            paginator = self.sagemaker.get_paginator("list_apps")
             apps = []
             for page in paginator.paginate(DomainIdEquals=domain_id, UserProfileNameEquals=user_profile_name):
-                apps.extend(page.get('Apps', []))
+                apps.extend(page.get("Apps", []))
             return apps
         except ClientError as e:
             print(f"Error listing apps for user profile {user_profile_name}: {str(e)}")
@@ -118,13 +119,13 @@ class SageMakerUserProfileManager:
     def list_spaces_for_user_profile(self, domain_id: str, user_profile_name: str) -> List[Dict]:
         """List all spaces owned by a specific user profile."""
         try:
-            paginator = self.sagemaker.get_paginator('list_spaces')
+            paginator = self.sagemaker.get_paginator("list_spaces")
             spaces = []
             for page in paginator.paginate(DomainIdEquals=domain_id):
-                for space in page.get('Spaces', []):
+                for space in page.get("Spaces", []):
                     # Check if this space belongs to the user profile
-                    space_details = self.get_space_details(domain_id, space['SpaceName'])
-                    if space_details.get('OwnershipSettings', {}).get('OwnerUserProfileName') == user_profile_name:
+                    space_details = self.get_space_details(domain_id, space["SpaceName"])
+                    if space_details.get("OwnershipSettings", {}).get("OwnerUserProfileName") == user_profile_name:
                         spaces.append(space)
             return spaces
         except ClientError as e:
@@ -134,10 +135,7 @@ class SageMakerUserProfileManager:
     def get_space_details(self, domain_id: str, space_name: str) -> Dict:
         """Get detailed information about a specific space."""
         try:
-            response = self.sagemaker.describe_space(
-                DomainId=domain_id,
-                SpaceName=space_name
-            )
+            response = self.sagemaker.describe_space(DomainId=domain_id, SpaceName=space_name)
             return response
         except ClientError as e:
             print(f"Error getting details for space {space_name}: {str(e)}")
@@ -148,10 +146,7 @@ class SageMakerUserProfileManager:
         try:
             print(f"Deleting app: {app_name} (type: {app_type}) for user: {user_profile_name}")
             self.sagemaker.delete_app(
-                DomainId=domain_id,
-                UserProfileName=user_profile_name,
-                AppType=app_type,
-                AppName=app_name
+                DomainId=domain_id, UserProfileName=user_profile_name, AppType=app_type, AppName=app_name
             )
             print(f"Successfully initiated deletion of app: {app_name}")
             return True
@@ -163,10 +158,7 @@ class SageMakerUserProfileManager:
         """Delete a specific space."""
         try:
             print(f"Deleting space: {space_name}")
-            self.sagemaker.delete_space(
-                DomainId=domain_id,
-                SpaceName=space_name
-            )
+            self.sagemaker.delete_space(DomainId=domain_id, SpaceName=space_name)
             print(f"Successfully initiated deletion of space: {space_name}")
             return True
         except ClientError as e:
@@ -177,10 +169,7 @@ class SageMakerUserProfileManager:
         """Delete a specific user profile."""
         try:
             print(f"Deleting user profile: {user_profile_name}")
-            self.sagemaker.delete_user_profile(
-                DomainId=domain_id,
-                UserProfileName=user_profile_name
-            )
+            self.sagemaker.delete_user_profile(DomainId=domain_id, UserProfileName=user_profile_name)
             print(f"Successfully initiated deletion of user profile: {user_profile_name}")
             return True
         except ClientError as e:
@@ -194,12 +183,12 @@ class SageMakerUserProfileManager:
 
         print("Waiting for apps to be deleted...")
         max_wait_time = 300  # 5 minutes
-        wait_interval = 10   # 10 seconds
+        wait_interval = 10  # 10 seconds
         elapsed_time = 0
 
         while elapsed_time < max_wait_time:
             remaining_apps = self.list_apps_for_user_profile(domain_id, user_profile_name)
-            active_apps = [app for app in remaining_apps if app.get('Status') not in ['Deleted', 'Failed']]
+            active_apps = [app for app in remaining_apps if app.get("Status") not in ["Deleted", "Failed"]]
 
             if not active_apps:
                 print("All apps have been deleted.")
@@ -219,14 +208,12 @@ class SageMakerUserProfileManager:
 
         print("Waiting for spaces to be deleted...")
         max_wait_time = 600  # 10 minutes (spaces can take longer than apps)
-        wait_interval = 15   # 15 seconds
+        wait_interval = 15  # 15 seconds
         elapsed_time = 0
-
-        space_names = [space['SpaceName'] for space in spaces]
 
         while elapsed_time < max_wait_time:
             remaining_spaces = self.list_spaces_for_user_profile(domain_id, user_profile_name)
-            active_spaces = [space for space in remaining_spaces if space.get('Status') not in ['Deleted', 'Failed']]
+            active_spaces = [space for space in remaining_spaces if space.get("Status") not in ["Deleted", "Failed"]]
 
             if not active_spaces:
                 print("All spaces have been deleted.")
@@ -242,7 +229,7 @@ class SageMakerUserProfileManager:
         print("Timeout waiting for spaces to be deleted. Please check manually.")
         return False
 
-    def interactive_user_profile_selection(self, profiles: List[Dict]) -> Dict:
+    def interactive_user_profile_selection(self, profiles: List[Dict]) -> Optional[Dict]:
         """Allow user to interactively select a user profile for deletion."""
         if not profiles:
             return None
@@ -264,7 +251,7 @@ class SageMakerUserProfileManager:
         # Use inquirer for single select
         questions = [
             inquirer.List(
-                'selected_profile',
+                "selected_profile",
                 message="Select user profile to delete",
                 choices=choices,
             ),
@@ -272,13 +259,13 @@ class SageMakerUserProfileManager:
 
         try:
             answers = inquirer.prompt(questions)
-            if not answers or not answers['selected_profile']:
+            if not answers or not answers["selected_profile"]:
                 print("No user profile selected.")
                 return None
 
             # Map selected choice back to profile object
             for i, choice in enumerate(choices):
-                if choice == answers['selected_profile']:
+                if choice == answers["selected_profile"]:
                     return profiles[i]
 
             return None
@@ -309,10 +296,14 @@ class SageMakerUserProfileManager:
         if not apps and not spaces:
             print("\nNo dependencies found. User profile can be deleted directly.")
         else:
-            print(f"\nTo delete this user profile, all {len(apps)} app(s) and {len(spaces)} space(s) must be deleted first.")
+            print(
+                f"\nTo delete this user profile, all {len(apps)} app(s) and {len(spaces)} space(s) must be deleted first."
+            )
 
         try:
-            confirmation = input(f"\nDo you want to delete all dependencies and the user profile '{profile['user_profile_name']}'? (yes/no): ").lower()
+            confirmation = input(
+                f"\nDo you want to delete all dependencies and the user profile '{profile['user_profile_name']}'? (yes/no): "
+            ).lower()
             return confirmation == "yes"
         except KeyboardInterrupt:
             print("\nOperation cancelled by user.")
@@ -345,15 +336,9 @@ def main():
     # Get dependencies (apps and spaces)
     print(f"\nAnalyzing dependencies for user profile: {selected_profile['user_profile_name']}")
 
-    apps = manager.list_apps_for_user_profile(
-        selected_profile['domain_id'],
-        selected_profile['user_profile_name']
-    )
+    apps = manager.list_apps_for_user_profile(selected_profile["domain_id"], selected_profile["user_profile_name"])
 
-    spaces = manager.list_spaces_for_user_profile(
-        selected_profile['domain_id'],
-        selected_profile['user_profile_name']
-    )
+    spaces = manager.list_spaces_for_user_profile(selected_profile["domain_id"], selected_profile["user_profile_name"])
 
     # Show dependencies and get confirmation
     if not manager.show_dependencies_and_confirm(selected_profile, apps, spaces):
@@ -369,15 +354,14 @@ def main():
         print(f"\nDeleting {len(apps)} app(s)...")
         for app in apps:
             if manager.delete_app(
-                selected_profile['domain_id'],
-                selected_profile['user_profile_name'],
-                app['AppType'],
-                app['AppName']
+                selected_profile["domain_id"], selected_profile["user_profile_name"], app["AppType"], app["AppName"]
             ):
                 success_count += 1
 
         # Wait for apps to be deleted
-        if not manager.wait_for_apps_deletion(selected_profile['domain_id'], selected_profile['user_profile_name'], apps):
+        if not manager.wait_for_apps_deletion(
+            selected_profile["domain_id"], selected_profile["user_profile_name"], apps
+        ):
             print("Failed to wait for apps deletion. Please check manually before proceeding.")
             return
 
@@ -385,18 +369,20 @@ def main():
     if spaces:
         print(f"\nDeleting {len(spaces)} space(s)...")
         for space in spaces:
-            if manager.delete_space(selected_profile['domain_id'], space['SpaceName']):
+            if manager.delete_space(selected_profile["domain_id"], space["SpaceName"]):
                 success_count += 1
 
         # Wait for spaces to be deleted
-        if not manager.wait_for_spaces_deletion(selected_profile['domain_id'], selected_profile['user_profile_name'], spaces):
+        if not manager.wait_for_spaces_deletion(
+            selected_profile["domain_id"], selected_profile["user_profile_name"], spaces
+        ):
             print("Failed to wait for spaces deletion. Please check manually before proceeding.")
             return
 
     # Delete user profile
     if total_items == 0 or success_count == total_items:
         print(f"\nDeleting user profile: {selected_profile['user_profile_name']}")
-        if manager.delete_user_profile(selected_profile['domain_id'], selected_profile['user_profile_name']):
+        if manager.delete_user_profile(selected_profile["domain_id"], selected_profile["user_profile_name"]):
             print(f"\nSuccessfully initiated deletion of user profile: {selected_profile['user_profile_name']}")
         else:
             print("Failed to delete user profile.")

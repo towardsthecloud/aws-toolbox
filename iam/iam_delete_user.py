@@ -2,9 +2,6 @@
 #
 # This script deletes iam users
 
-import argparse
-import boto3
-
 
 def delete_access_keys(iam_client, user_name):
     response = iam_client.list_access_keys(UserName=user_name)

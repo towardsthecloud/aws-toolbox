@@ -88,7 +88,7 @@ def remove_ssh_rule(ec2_client, security_group, dry_run=False):
             if sg_rule["IpProtocol"] == rule["IpProtocol"]
             and sg_rule["FromPort"] == rule["FromPort"]
             and sg_rule["ToPort"] == rule["ToPort"]
-            and sg_rule["IsEgress"] == False  # Inbound rules
+            and not sg_rule["IsEgress"]  # Inbound rules
         ]
 
         for matching_rule in matching_rules:

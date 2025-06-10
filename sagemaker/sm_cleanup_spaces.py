@@ -24,9 +24,8 @@ import sys
 from typing import List, Dict
 from botocore.exceptions import ClientError, NoCredentialsError
 
-
 class SageMakerSpaceManager:
-    def __init__(self, region_name: str = None):
+    def __init__(self, region_name: str | None = None):
         """Initialize the SageMaker client."""
         try:
             self.session = boto3.Session()

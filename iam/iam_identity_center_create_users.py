@@ -54,7 +54,6 @@ def create_sso_users(emails, group_name=None):
         print("No SSO instance found.")
         return [], emails
 
-    instance_arn = instances["Instances"][0]["InstanceArn"]
     identity_store_id = instances["Instances"][0]["IdentityStoreId"]
 
     successful = []
