@@ -105,6 +105,8 @@ This collection includes Python and Bash scripts for managing various AWS servic
 | S3             | [s3_search_key.py](s3/s3_search_key.py)                                                           | Searches for a key in S3 bucket                                    |
 | S3             | [s3_search_multiple_keys.py](s3/s3_search_multiple_keys.py)                                       | Searches for multiple keys in S3 bucket                            |
 | S3             | [s3_search_subdirectory.py](s3/s3_search_subdirectory.py)                                         | Searches subdirectories in S3                                      |
+| SageMaker      | [sm_cleanup_spaces.py](sagemaker/sm_cleanup_spaces.py)                                            | Interactive tool to list and delete SageMaker Studio spaces        |
+| SageMaker      | [sm_delete_user_profile.py](sagemaker/sm_delete_user_profile.py)                                  | Deletes SageMaker user profiles and their dependencies             |
 | SSM            | [ssm_delete_parameters.sh](ssm/ssm_delete_parameters.sh)                                          | Deletes SSM parameters                                             |
 | SSM            | [ssm_import_parameters.sh](ssm/ssm_import_parameters.sh)                                          | Imports SSM parameters                                             |
 | General        | [delete_unused_security_groups.py](general/delete_unused_security_groups.py)                      | Deletes unused security groups                                     |
