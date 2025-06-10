@@ -18,7 +18,7 @@ jobs:
           python-version: 3.12
 
       - name: Install mypy and types
-        run:  uvp install --requirements requirements.txt
+        run:  uv pip install --requirements requirements.txt
 
       - name: Run Ruff (linting and formatting)
         uses: astral-sh/ruff-action@v1
