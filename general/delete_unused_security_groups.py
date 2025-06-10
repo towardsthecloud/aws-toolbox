@@ -1,33 +1,44 @@
 """
 Description: This script identifies and optionally deletes unused security groups in an AWS account.
 It fetches security groups based on the specified type (EC2, RDS, ELB, or all), determines which ones
-are currently in use, and identifies the unused security groups. The script can perform a dry run
-to show which security groups would be deleted without actually deleting them.
+are currently in use by querying Elastic Network Interfaces (ENIs), and identifies the unused security groups.
+The script can perform a dry run to show which security groups would be deleted without actually deleting them.
 
 Key features:
-- Supports filtering of security groups by type (EC2, RDS, ELB, or all)
+- Uses ENI-based detection for comprehensive coverage of all AWS services
+- Supports filtering of security groups by type (EC2, RDS, ELB, or all) based on naming conventions
 - Automatically uses the region specified in the AWS CLI profile
 - Supports dry run mode for safe execution
 - Provides detailed logging of all operations
 - Implements error handling for robustness
 - Skips deletion of security groups with 'default' in their name
-- Handles cases where load balancers might not have associated security groups
 
 Usage:
 python delete_unused_security_groups.py [--dry-run] [--type {all,ec2,rds,elb}]
 
 Arguments:
 --dry-run            Perform a dry run without deleting security groups
---type {all,ec2,rds,elb}  Specify the type of security groups to consider (default: all)
+--type {all,ec2,rds,elb}  Specify the type of security groups to consider based on naming conventions:
+                     - all: All security groups
+                     - ec2: Security groups not starting with 'rds-' or 'elb-'
+                     - rds: Security groups starting with 'rds-'
+                     - elb: Security groups starting with 'elb-'
+
+Important Note about Type Filtering:
+When a specific type is selected (e.g., --type rds), the script:
+1. Filters security groups by naming convention (e.g., only considers groups starting with 'rds-')
+2. Still checks if these groups are in use by ANY AWS service (not just RDS)
+This ensures safety - a security group with an 'rds-' prefix that's actually used by an EC2 instance
+will not be deleted, which is the correct behavior.
 
 The script performs the following steps:
-1. Retrieves all security groups of the specified type
-2. Identifies security groups in use by EC2 instances, load balancers, and RDS instances
-3. Determines unused security groups by comparing all groups to those in use
+1. Retrieves all security groups of the specified type (based on naming conventions)
+2. Identifies security groups in use by querying all Elastic Network Interfaces (ENIs)
+3. Determines unused security groups by comparing filtered groups to those in use
 4. Deletes unused security groups (unless in dry-run mode)
 
 Note: This script requires appropriate AWS permissions to describe and delete security groups,
-as well as to describe EC2 instances, load balancers, and RDS instances.
+as well as to describe network interfaces.
 
 Author: Danny Steenman
 License: MIT
@@ -46,68 +57,41 @@ def setup_logging():
     return logging.getLogger(__name__)
 
 
-def get_used_security_groups(ec2, elb, elbv2, rds, logger, sg_type):
-    """Collect all security groups in use."""
+def get_used_security_groups(ec2, logger):
+    """Collect all security groups in use by querying ENIs."""
     used_sg = set()
 
-    if sg_type in ["all", "ec2"]:
-        try:
-            # EC2 instances
-            for reservation in ec2.describe_instances()["Reservations"]:
-                for instance in reservation["Instances"]:
-                    used_sg.update(sg["GroupId"] for sg in instance["SecurityGroups"])
-        except ClientError as e:
-            logger.error(f"Error describing EC2 instances: {str(e)}")
+    try:
+        # Get all ENIs and their attached security groups
+        paginator = ec2.get_paginator('describe_network_interfaces')
+        for page in paginator.paginate():
+            for eni in page["NetworkInterfaces"]:
+                for sg in eni["Groups"]:
+                    used_sg.add(sg["GroupId"])
 
-    if sg_type in ["all", "elb"]:
-        try:
-            # Classic Load Balancers
-            for lb in elb.describe_load_balancers()["LoadBalancerDescriptions"]:
-                if "SecurityGroups" in lb:
-                    used_sg.update(lb["SecurityGroups"])
-                else:
-                    logger.debug(
-                        f"Classic Load Balancer without SecurityGroups: {lb.get('LoadBalancerName', 'Unknown')}"
-                    )
-        except ClientError as e:
-            logger.error(f"Error describing Classic Load Balancers: {str(e)}")
-
-        try:
-            # Application and Network Load Balancers
-            for lb in elbv2.describe_load_balancers()["LoadBalancers"]:
-                if "SecurityGroups" in lb:
-                    used_sg.update(lb["SecurityGroups"])
-                else:
-                    logger.debug(f"ALB/NLB without SecurityGroups: {lb.get('LoadBalancerName', 'Unknown')}")
-        except ClientError as e:
-            logger.error(f"Error describing Application/Network Load Balancers: {str(e)}")
-
-    if sg_type in ["all", "rds"]:
-        try:
-            # RDS Instances
-            for instance in rds.describe_db_instances()["DBInstances"]:
-                used_sg.update(sg["VpcSecurityGroupId"] for sg in instance["VpcSecurityGroups"])
-        except ClientError as e:
-            logger.error(f"Error describing RDS instances: {str(e)}")
+        logger.info(f"Found {len(used_sg)} security groups in use across all ENIs")
+    except ClientError as e:
+        logger.error(f"Error describing network interfaces: {str(e)}")
 
     return used_sg
 
 
-def get_all_security_groups(ec2, sg_type):
+def get_all_security_groups(ec2, sg_type, logger):
     """Get all security groups in the region based on the specified type."""
     all_sg = set()
     try:
-        response = ec2.describe_security_groups()
-        for sg in response["SecurityGroups"]:
-            group_name = sg["GroupName"].lower()
-            if sg_type == "all":
-                all_sg.add(sg["GroupId"])
-            elif sg_type == "ec2" and not (group_name.startswith("rds-") or group_name.startswith("elb-")):
-                all_sg.add(sg["GroupId"])
-            elif sg_type == "rds" and group_name.startswith("rds-"):
-                all_sg.add(sg["GroupId"])
-            elif sg_type == "elb" and group_name.startswith("elb-"):
-                all_sg.add(sg["GroupId"])
+        paginator = ec2.get_paginator('describe_security_groups')
+        for page in paginator.paginate():
+            for sg in page["SecurityGroups"]:
+                group_name = sg["GroupName"].lower()
+                if sg_type == "all":
+                    all_sg.add(sg["GroupId"])
+                elif sg_type == "ec2" and not (group_name.startswith("rds-") or group_name.startswith("elb-")):
+                    all_sg.add(sg["GroupId"])
+                elif sg_type == "rds" and group_name.startswith("rds-"):
+                    all_sg.add(sg["GroupId"])
+                elif sg_type == "elb" and group_name.startswith("elb-"):
+                    all_sg.add(sg["GroupId"])
     except ClientError as e:
         logger.error(f"Error describing security groups: {str(e)}")
     return all_sg
@@ -143,14 +127,11 @@ def delete_unused_security_groups(ec2, unused_sg, dry_run, logger):
 def main(dry_run, sg_type):
     logger = setup_logging()
 
-    # Initialize AWS clients
+    # Initialize AWS client (only need EC2 now)
     ec2 = boto3.client("ec2")
-    elb = boto3.client("elb")
-    elbv2 = boto3.client("elbv2")
-    rds = boto3.client("rds")
 
-    used_sg = get_used_security_groups(ec2, elb, elbv2, rds, logger, sg_type)
-    all_sg = get_all_security_groups(ec2, sg_type)
+    used_sg = get_used_security_groups(ec2, logger)
+    all_sg = get_all_security_groups(ec2, sg_type, logger)
     unused_sg = all_sg - used_sg
 
     logger.info(f"Total Security Groups ({sg_type}): {len(all_sg)}")
@@ -171,7 +152,11 @@ if __name__ == "__main__":
         "--type",
         choices=["all", "ec2", "rds", "elb"],
         default="all",
-        help="Specify the type of security groups to consider (default: all)",
+        help="Specify the type of security groups to consider based on naming conventions: "
+             "- all: All security groups "
+             "- ec2: Security groups not starting with 'rds-' or 'elb-' "
+             "- rds: Security groups starting with 'rds-' "
+             "- elb: Security groups starting with 'elb-'",
     )
     args = parser.parse_args()
 
