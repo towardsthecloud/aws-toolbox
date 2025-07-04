@@ -16,7 +16,6 @@ Key features:
 Usage:
 python ec2_delete_orphaned_snapshots.py [--dry-run] [--retention-days DAYS] [--profile PROFILE_NAME]
 
-Author: [Your Name]
 License: MIT
 """
 

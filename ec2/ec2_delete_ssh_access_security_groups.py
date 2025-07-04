@@ -13,7 +13,6 @@ Key features:
 Usage:
 python ec2_remove_ssh_from_security_groups.py [--dry-run] [--profile PROFILE_NAME]
 
-Author: [Your Name]
 License: MIT
 """
 
