@@ -133,7 +133,6 @@ This section lists tools that enhance AWS usage across console, CLI, and APIs.
 ### IAM
 - [AWS IAM Actions](https://www.awsiamactions.io) - Comprehensive IAM action listing and policy generator.
 - [IAM Floyd](https://github.com/udondan/iam-floyd) - Fluent interface for IAM policy statement generation.
-- [IAM Zero](https://iamzero.dev) - Automated least-privilege policy suggestion tool.
 
 ### Infrastructure as Code
 - [AWS CDK Starterkit](https://github.com/towardsthecloud/aws-cdk-starterkit) - Rapid AWS CDK app deployment via GitHub actions.
