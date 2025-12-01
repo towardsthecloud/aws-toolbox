@@ -57,6 +57,7 @@ This collection includes Python and Bash scripts for managing various AWS servic
 | -------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | AppStream      | [appstream_delete_image.py](appstream/appstream_delete_image.py)                                  | Unshares AppStream image, then deletes it                          |
 | CloudFormation | [cfn_delete_stackset.py](cloudformation/cfn_delete_stackset.py)                                   | Deletes stackset and associated instances                          |
+| CloudFormation | [cfn_find_stack_by_resource.py](cloudformation/cfn_find_stack_by_resource.py)                     | Finds the CloudFormation stack that owns a given resource          |
 | CloudWatch     | [cw_count_log_groups.py](cloudwatch/cw_count_log_groups.py)                                       | Counts the total number of CloudWatch log groups in an AWS account |
 | CloudWatch     | [cw_delete_log_groups.py](cloudwatch/cw_delete_log_groups.py)                                     | Deletes log groups based on age                                    |
 | CloudWatch     | [cw_fetch_log_groups_with_creation_date.py](cloudwatch/cw_fetch_log_groups_with_creation_date.py) | Fetches log groups with creation date                              |
@@ -83,7 +84,11 @@ This collection includes Python and Bash scripts for managing various AWS servic
 | IAM            | [iam_identity_center_create_users.py](iam/iam_identity_center_create_users.py)                    | Create IAM Identity Center (SSO) users                             |
 | IAM            | [iam_rotate_access_keys.py](iam/iam_rotate_access_keys.py)                                        | Rotates IAM user keys                                              |
 | IAM            | [iam_assume_role.sh](iam/iam_assume_role.sh)                                                      | Assumes IAM role                                                   |
+| KMS            | [kms_delete_keys_by_tag.py](kms/kms_delete_keys_by_tag.py)                                        | Schedules deletion for KMS keys based on tag filters               |
+| KMS            | [kms_delete_unused_keys.py](kms/kms_delete_unused_keys.py)                                        | Schedules deletion for unused customer-managed KMS keys            |
 | Organizations  | [org_assign_sso_access_by_ou.py](organizations/org_assign_sso_access_by_ou.py)                    | Assigns SSO access for accounts in an OU                           |
+| Organizations  | [org_generate_mermaid_diagram.py](organizations/org_generate_mermaid_diagram.py)                  | Generates AWS organization structure as a Mermaid diagram          |
+| Organizations  | [org_get_account_details.py](organizations/org_get_account_details.py)                            | Gets and displays detailed information about an AWS account        |
 | Organizations  | [org_import_users_to_sso.py](organizations/org_import_users_to_sso.py)                            | Imports users/groups to AWS SSO                                    |
 | Organizations  | [org_list_accounts_by_ou.py](organizations/org_list_accounts_by_ou.py)                            | Lists accounts in an OU                                            |
 | Organizations  | [org_list_sso_assignments.py](organizations/org_list_sso_assignments.py)                          | Lists SSO assignments for accounts                                 |
