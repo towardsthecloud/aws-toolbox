@@ -60,6 +60,7 @@ This collection includes Python and Bash scripts for managing various AWS servic
 | CloudFormation | [cfn_find_stack_by_resource.py](cloudformation/cfn_find_stack_by_resource.py)                     | Finds the CloudFormation stack that owns a given resource          |
 | CloudWatch     | [cw_count_log_groups.py](cloudwatch/cw_count_log_groups.py)                                       | Counts the total number of CloudWatch log groups in an AWS account |
 | CloudWatch     | [cw_delete_log_groups.py](cloudwatch/cw_delete_log_groups.py)                                     | Deletes log groups based on age                                    |
+| CloudWatch     | [cw_delete_log_groups_by_name.py](cloudwatch/cw_delete_log_groups_by_name.py)                     | Deletes log groups containing a specific string in the name        |
 | CloudWatch     | [cw_fetch_log_groups_with_creation_date.py](cloudwatch/cw_fetch_log_groups_with_creation_date.py) | Fetches log groups with creation date                              |
 | CloudWatch     | [cw_set_retention_policy.py](cloudwatch/cw_set_retention_policy.py)                               | Sets retention policy for log groups                               |
 | CodePipeline   | [cp_slack_notifications.py](codepipeline/cp_slack_notifications.py)                               | Enables notifications on Slack                                     |
