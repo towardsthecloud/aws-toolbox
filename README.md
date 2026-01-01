@@ -120,8 +120,9 @@ This collection includes Python and Bash scripts for managing various AWS servic
 
 This section lists tools that enhance AWS usage across console, CLI, and APIs.
 
-### EC2
+### FinOps
 - [AutoSpotting](https://github.com/AutoSpotting/AutoSpotting) - Open-source spot market automation tool for easy adoption at scale.
+- [CloudBurn](https://cloudburn.io) - Automatic AWS cost estimates in pull requests. Analyzes CDK diff or Terraform plan output to show monthly infrastructure costs.
 
 ### ECS
 - [Awesome ECS](https://github.com/nathanpeck/awesome-ecs) - Curated list of ECS guides and resources.
