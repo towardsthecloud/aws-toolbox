@@ -122,6 +122,7 @@ This section lists tools that enhance AWS usage across console, CLI, and APIs.
 
 ### FinOps
 - [AutoSpotting](https://github.com/AutoSpotting/AutoSpotting) - Open-source spot market automation tool for easy adoption at scale.
+- [AWS FinOps Dashboard](https://github.com/ravikiranvm/aws-finops-dashboard) - Terminal-based AWS cost dashboard with spend breakdowns, budget tracking, and instance summaries.
 - [CloudBurn](https://cloudburn.io) - Automatic AWS cost estimates in pull requests. Analyzes CDK diff or Terraform plan output to show monthly infrastructure costs.
 
 ### ECS
