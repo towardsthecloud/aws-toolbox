@@ -10,11 +10,17 @@ import (
 
 func executeCommand(t *testing.T, args ...string) (string, error) {
 	t.Helper()
+	return executeCommandWithInput(t, "", args...)
+}
+
+func executeCommandWithInput(t *testing.T, input string, args ...string) (string, error) {
+	t.Helper()
 
 	cmd := NewRootCommand()
 	buf := &bytes.Buffer{}
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
+	cmd.SetIn(strings.NewReader(input))
 	cmd.SetArgs(args)
 
 	err := cmd.Execute()

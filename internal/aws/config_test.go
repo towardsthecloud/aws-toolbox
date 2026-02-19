@@ -6,6 +6,7 @@ import (
 )
 
 func TestLoadAWSConfigWithRegionOverride(t *testing.T) {
+	clearRegionEnv(t)
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 
 	cfg, err := LoadAWSConfig("", "us-east-1")
@@ -18,6 +19,7 @@ func TestLoadAWSConfigWithRegionOverride(t *testing.T) {
 }
 
 func TestLoadAWSConfigWithProfile(t *testing.T) {
+	clearRegionEnv(t)
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 	cfgDir := t.TempDir()
 
@@ -40,6 +42,7 @@ func TestLoadAWSConfigWithProfile(t *testing.T) {
 }
 
 func TestLoadAWSConfigMissingProfileReturnsError(t *testing.T) {
+	clearRegionEnv(t)
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 	t.Setenv("AWS_CONFIG_FILE", filepath.Join(t.TempDir(), "missing-config"))
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(t.TempDir(), "missing-credentials"))
@@ -48,4 +51,10 @@ func TestLoadAWSConfigMissingProfileReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing profile")
 	}
+}
+
+func clearRegionEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("AWS_REGION", "")
+	t.Setenv("AWS_DEFAULT_REGION", "")
 }
