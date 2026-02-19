@@ -72,3 +72,24 @@ func TestCompletionZshGeneratesScript(t *testing.T) {
 		t.Fatalf("unexpected zsh completion output\n%s", output)
 	}
 }
+
+func TestCompletionBashGeneratesScript(t *testing.T) {
+	output, err := executeCommand(t, "completion", "bash")
+	if err != nil {
+		t.Fatalf("execute completion bash: %v", err)
+	}
+
+	if !strings.Contains(output, "complete -o default -F __start_awstbx awstbx") {
+		t.Fatalf("unexpected bash completion output\n%s", output)
+	}
+}
+
+func TestVersionCommandPrintsBuildMetadata(t *testing.T) {
+	output, err := executeCommand(t, "version")
+	if err != nil {
+		t.Fatalf("execute version command: %v", err)
+	}
+	if !strings.Contains(output, "version:") || !strings.Contains(output, "commit:") || !strings.Contains(output, "build date:") {
+		t.Fatalf("unexpected version command output\n%s", output)
+	}
+}
