@@ -76,6 +76,8 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(newSageMakerCommand())
 	rootCmd.AddCommand(newSSMCommand())
 
+	applyCommandHelpDefaults(rootCmd)
+
 	return rootCmd
 }
 

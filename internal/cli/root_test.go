@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/towardsthecloud/aws-toolbox/internal/version"
 )
 
@@ -91,5 +92,35 @@ func TestVersionCommandPrintsBuildMetadata(t *testing.T) {
 	}
 	if !strings.Contains(output, "version:") || !strings.Contains(output, "commit:") || !strings.Contains(output, "build date:") {
 		t.Fatalf("unexpected version command output\n%s", output)
+	}
+}
+
+func TestAllCommandsHaveLongDescriptionAndExamples(t *testing.T) {
+	root := NewRootCommand()
+
+	var missingLong []string
+	var missingExamples []string
+
+	walkCommandsForTest(root, func(cmdPath string, longText string, exampleText string) {
+		if strings.TrimSpace(longText) == "" {
+			missingLong = append(missingLong, cmdPath)
+		}
+		if strings.TrimSpace(exampleText) == "" {
+			missingExamples = append(missingExamples, cmdPath)
+		}
+	})
+
+	if len(missingLong) > 0 {
+		t.Fatalf("commands missing Long descriptions: %s", strings.Join(missingLong, ", "))
+	}
+	if len(missingExamples) > 0 {
+		t.Fatalf("commands missing Example text: %s", strings.Join(missingExamples, ", "))
+	}
+}
+
+func walkCommandsForTest(root *cobra.Command, visit func(cmdPath string, longText string, exampleText string)) {
+	visit(root.CommandPath(), root.Long, root.Example)
+	for _, child := range root.Commands() {
+		walkCommandsForTest(child, visit)
 	}
 }

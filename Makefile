@@ -9,7 +9,7 @@ LDFLAGS := -X github.com/towardsthecloud/aws-toolbox/internal/version.Version=$(
 LDFLAGS += -X github.com/towardsthecloud/aws-toolbox/internal/version.Commit=$(COMMIT)
 LDFLAGS += -X github.com/towardsthecloud/aws-toolbox/internal/version.Date=$(DATE)
 
-.PHONY: help setup fmt lint test test-integration build
+.PHONY: help setup fmt lint test test-integration build docs
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-18s %s\n", $$1, $$2}'
@@ -32,3 +32,7 @@ test-integration: ## Run integration tests
 build: ## Build the awstbx binary
 	mkdir -p $(OUT_DIR)
 	go build -ldflags "$(LDFLAGS)" -o $(OUT_DIR)/$(BINARY) ./cmd/awstbx
+
+docs: ## Generate CLI markdown docs and man pages
+	rm -rf docs/cli docs/man
+	go run ./cmd/awstbx-docs
