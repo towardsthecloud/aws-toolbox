@@ -30,7 +30,7 @@ homebrew_casks:
   - repository:
       owner: towardsthecloud
       name: homebrew-tap
-      token: "{{ .Env.GITHUB_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Casks
     homepage: https://github.com/towardsthecloud/aws-toolbox
     description: Unified CLI for AWS infrastructure automation
