@@ -12,7 +12,7 @@ The rewrite consolidates them into a single statically-linked binary with a cons
 - **Consistent UX** — every command supports `--profile`, `--region`, `--dry-run`, `--output`, `--no-confirm`
 - **Shell-native ergonomics** — built-in autocomplete generation for `bash`, `zsh`, `fish`, and `powershell`
 - **Safe by default** — destructive operations require confirmation unless `--no-confirm` is set
-- **Tested** — unit tests with AWS SDK mocks, integration tests against localstack
+- **Tested** — unit tests with AWS SDK mocks
 - **Distributable** — Homebrew tap, GitHub Releases, goreleaser
 
 ### Scope
@@ -599,17 +599,15 @@ graph TB
 
 ### Milestone 6: Integration Tests & Documentation
 
-**Scope:** Integration tests against localstack, CLI documentation, man pages.
+**Scope:** Integration tests against CLI documentation, man pages.
 
 **Deliverables:**
-- Integration test suite using localstack (EC2, S3, CloudWatch, IAM, SSM services)
 - Auto-generated CLI reference documentation (`awstbx <command> --help`)
 - Updated repository README with installation and usage instructions
 - Shell completion installation docs for `bash`, `zsh`, `fish`, and `powershell`
 - Migration guide: old script → new command mapping table
 
 **Acceptance Criteria:**
-- Integration tests pass in CI against localstack container
 - Every command has a `--help` description with examples
 - README includes `brew install` instructions
 - README includes shell completion setup examples per shell
@@ -667,19 +665,6 @@ jobs:
         with: { go-version-file: go.mod }
       - run: go build -o awstbx ./cmd/awstbx
 
-  integration:
-    runs-on: ubuntu-latest
-    services:
-      localstack:
-        image: localstack/localstack:latest
-        ports: ["4566:4566"]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version-file: go.mod }
-      - run: go test -tags=integration ./...
-        env:
-          AWS_ENDPOINT_URL: http://localhost:4566
 ```
 
 ### 7.2 Makefile Workflow (Required)
@@ -787,21 +772,6 @@ func (m *mockEC2Client) DescribeImages(ctx context.Context, params *ec2.Describe
 - Command implementations (`internal/cli`): > 80%
 - Overall project: > 80%
 
-### 8.2 Integration Tests
-
-Integration tests run against [localstack](https://github.com/localstack/localstack) in CI. They use build tags to separate from unit tests:
-
-```go
-//go:build integration
-
-func TestEC2DeleteVolumes_Integration(t *testing.T) {
-    // Create unattached volume in localstack
-    // Run delete-volumes command
-    // Verify volume is deleted
-}
-```
-
-**Localstack services required:** EC2, S3, CloudWatch Logs, IAM, SSM, KMS, ECS, EFS, STS, Organizations, SageMaker.
 
 ### 8.3 Test Organization
 
@@ -811,7 +781,6 @@ awstbx/
 │   ├── cli/
 │   │   ├── ec2.go
 │   │   ├── ec2_test.go           # Unit tests (mocked)
-│   │   └── ec2_integration_test.go  # Integration tests (localstack)
 │   ├── aws/
 │   │   ├── config.go
 │   │   └── config_test.go
@@ -832,9 +801,6 @@ go test ./...
 
 # Unit tests with coverage
 go test -race -coverprofile=coverage.out ./...
-
-# Integration tests (requires localstack running)
-go test -tags=integration ./...
 
 # All tests
 go test -tags=integration -race -coverprofile=coverage.out ./...

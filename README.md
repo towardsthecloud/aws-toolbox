@@ -139,17 +139,6 @@ make test-integration
 make build
 ```
 
-### Integration Tests (LocalStack)
-
-Integration tests use LocalStack and require `AWS_ENDPOINT_URL`.
-
-Example:
-
-```bash
-docker run --rm -d --name localstack -p 4566:4566 localstack/localstack:latest
-AWS_ENDPOINT_URL=http://localhost:4566 make test-integration
-```
-
 ## Legacy Scripts
 
 Legacy scripts are kept under `old-scripts/` during migration, but `awstbx` is the primary supported interface.
