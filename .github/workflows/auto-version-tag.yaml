@@ -1,13 +1,13 @@
 name: Auto Version Tag
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
-  group: version-tag-${{ github.event.pull_request.base.ref }}
+  group: version-tag-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -15,40 +15,17 @@ permissions:
 
 jobs:
   create-version-tag:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Determine version bump type from labels
+      - name: Determine version bump type from commits
         id: bump-type
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const labels = context.payload.pull_request.labels.map(label => label.name);
-            let bumpType = 'patch';
-
-            if (labels.includes('major')) {
-              bumpType = 'major';
-            } else if (labels.includes('minor')) {
-              bumpType = 'minor';
-            } else if (labels.includes('patch')) {
-              bumpType = 'patch';
-            }
-
-            core.setOutput('bump_type', bumpType);
-            return bumpType;
-
-      - name: Calculate next version
-        id: version
-        env:
-          BUMP_TYPE: ${{ steps.bump-type.outputs.bump_type }}
         run: |
           set -eu
           git fetch --tags --force
@@ -57,9 +34,39 @@ jobs:
             latest_tag="v0.0.0"
           fi
 
+          commit_log="$(git log --format='%s%n%b' "${latest_tag}..HEAD" || true)"
+          bump_type="patch"
+          if printf '%s\n' "$commit_log" | grep -Eq 'BREAKING CHANGE|!:'; then
+            bump_type="major"
+          elif printf '%s\n' "$commit_log" | grep -Eq '^feat(\(.+\))?:'; then
+            bump_type="minor"
+          fi
+
+          {
+            echo "latest_tag=$latest_tag"
+            echo "bump_type=$bump_type"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Calculate next version
+        id: version
+        env:
+          BUMP_TYPE: ${{ steps.bump-type.outputs.bump_type }}
+          LATEST_TAG: ${{ steps.bump-type.outputs.latest_tag }}
+        run: |
+          set -eu
+          latest_tag="${LATEST_TAG}"
+
           if ! printf '%s' "$latest_tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "Latest tag '$latest_tag' is not SemVer (vMAJOR.MINOR.PATCH)."
             exit 1
+          fi
+
+          if [ "$latest_tag" != "v0.0.0" ] && [ "$(git rev-list -n 1 "$latest_tag")" = "$(git rev-parse HEAD)" ]; then
+            echo "No new commits since $latest_tag. Skipping tag creation."
+            {
+              echo "skip=true"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           version="${latest_tag#v}"
@@ -91,68 +98,27 @@ jobs:
             exit 1
           fi
 
-          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
-          echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+          {
+            echo "skip=false"
+            echo "new_version=$new_version"
+            echo "latest_tag=$latest_tag"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
+        if: steps.version.outputs.skip != 'true'
         env:
           NEW_VERSION: ${{ steps.version.outputs.new_version }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PUSH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
         run: |
           set -eu
+          if [ -z "${PUSH_TOKEN}" ]; then
+            echo "HOMEBREW_TAP_GITHUB_TOKEN is required to push tags and trigger Release workflow."
+            exit 1
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
-          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION
-
-          Merged PR #${PR_NUMBER}: ${PR_TITLE}
-          Author: @${PR_AUTHOR}
-
-          Automated release by github-actions"
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
           git push origin "$NEW_VERSION"
-
-      - name: Comment on PR with success
-        if: success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const newVersion = '${{ steps.version.outputs.new_version }}';
-            const latestTag = '${{ steps.version.outputs.latest_tag }}';
-            const bumpType = '${{ steps.bump-type.outputs.bump_type }}';
-
-            const body = [
-              'Version tag created successfully.',
-              '',
-              `- New version: \`${newVersion}\``,
-              `- Previous version: \`${latestTag}\``,
-              `- Bump type: \`${bumpType}\``,
-              '',
-              `Release workflow should now run for \`${newVersion}\`.`
-            ].join('\n');
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body
-            });
-
-      - name: Comment on PR with failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = [
-              'Automatic version tagging failed.',
-              '',
-              `See workflow logs: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
-            ].join('\n');
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body
-            });
