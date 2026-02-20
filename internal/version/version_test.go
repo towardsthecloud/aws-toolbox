@@ -2,6 +2,15 @@ package version
 
 import "testing"
 
+func TestShortReturnsVersion(t *testing.T) {
+	old := Version
+	defer func() { Version = old }()
+	Version = "1.2.3"
+	if got := Short(); got != "1.2.3" {
+		t.Fatalf("Short() = %q, want %q", got, "1.2.3")
+	}
+}
+
 func TestDetailedIncludesAllBuildFields(t *testing.T) {
 	oldVersion, oldCommit, oldDate := Version, Commit, Date
 	defer func() {

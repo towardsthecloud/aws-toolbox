@@ -149,3 +149,111 @@ func TestDeleteImageNoConfirmExecutes(t *testing.T) {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }
+
+func TestDeleteImagePermissionFailureSkipsImage(t *testing.T) {
+	client := &mockClient{
+		describeImagePermissionsFn: func(_ context.Context, _ *appstream.DescribeImagePermissionsInput, _ ...func(*appstream.Options)) (*appstream.DescribeImagePermissionsOutput, error) {
+			return &appstream.DescribeImagePermissionsOutput{SharedImagePermissionsList: []appstreamtypes.SharedImagePermissions{
+				{SharedAccountId: cliutil.Ptr("111111111111")},
+			}}, nil
+		},
+		deleteImagePermissionsFn: func(_ context.Context, _ *appstream.DeleteImagePermissionsInput, _ ...func(*appstream.Options)) (*appstream.DeleteImagePermissionsOutput, error) {
+			return nil, errors.New("permission denied")
+		},
+		deleteImageFn: func(_ context.Context, _ *appstream.DeleteImageInput, _ ...func(*appstream.Options)) (*appstream.DeleteImageOutput, error) {
+			t.Fatal("should not call DeleteImage when permissions cleanup fails")
+			return nil, nil
+		},
+	}
+
+	withMockDeps(
+		t,
+		func(_, _ string) (awssdk.Config, error) { return awssdk.Config{Region: "us-east-1"}, nil },
+		func(awssdk.Config) API { return client },
+	)
+
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "appstream", "delete-image", "--image-name", "image-a")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(output, "failed:") {
+		t.Fatalf("expected failed action in output: %s", output)
+	}
+	if !strings.Contains(output, "skipped:") {
+		t.Fatalf("expected skipped action in output: %s", output)
+	}
+}
+
+func TestDeleteImageDeleteError(t *testing.T) {
+	client := &mockClient{
+		describeImagePermissionsFn: func(_ context.Context, _ *appstream.DescribeImagePermissionsInput, _ ...func(*appstream.Options)) (*appstream.DescribeImagePermissionsOutput, error) {
+			return &appstream.DescribeImagePermissionsOutput{}, nil
+		},
+		deleteImageFn: func(_ context.Context, _ *appstream.DeleteImageInput, _ ...func(*appstream.Options)) (*appstream.DeleteImageOutput, error) {
+			return nil, errors.New("image in use")
+		},
+	}
+
+	withMockDeps(
+		t,
+		func(_, _ string) (awssdk.Config, error) { return awssdk.Config{Region: "us-east-1"}, nil },
+		func(awssdk.Config) API { return client },
+	)
+
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "appstream", "delete-image", "--image-name", "image-a")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(output, "failed:") {
+		t.Fatalf("expected failed action in output: %s", output)
+	}
+}
+
+func TestDeleteImageNoSharedPermissions(t *testing.T) {
+	deletedImages := 0
+	client := &mockClient{
+		describeImagePermissionsFn: func(_ context.Context, _ *appstream.DescribeImagePermissionsInput, _ ...func(*appstream.Options)) (*appstream.DescribeImagePermissionsOutput, error) {
+			return &appstream.DescribeImagePermissionsOutput{}, nil
+		},
+		deleteImageFn: func(_ context.Context, _ *appstream.DeleteImageInput, _ ...func(*appstream.Options)) (*appstream.DeleteImageOutput, error) {
+			deletedImages++
+			return &appstream.DeleteImageOutput{}, nil
+		},
+	}
+
+	withMockDeps(
+		t,
+		func(_, _ string) (awssdk.Config, error) { return awssdk.Config{Region: "us-east-1"}, nil },
+		func(awssdk.Config) API { return client },
+	)
+
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "appstream", "delete-image", "--image-name", "image-a")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deletedImages != 1 {
+		t.Fatalf("expected image deleted, got %d", deletedImages)
+	}
+	if !strings.Contains(output, "deleted") {
+		t.Fatalf("expected deleted in output: %s", output)
+	}
+}
+
+func TestDeleteImageListPermissionsError(t *testing.T) {
+	client := &mockClient{
+		describeImagePermissionsFn: func(_ context.Context, _ *appstream.DescribeImagePermissionsInput, _ ...func(*appstream.Options)) (*appstream.DescribeImagePermissionsOutput, error) {
+			return nil, errors.New("access denied")
+		},
+	}
+
+	withMockDeps(
+		t,
+		func(_, _ string) (awssdk.Config, error) { return awssdk.Config{Region: "us-east-1"}, nil },
+		func(awssdk.Config) API { return client },
+	)
+
+	_, err := executeCommand(t, "--no-confirm", "appstream", "delete-image", "--image-name", "image-a")
+	if err == nil || !strings.Contains(err.Error(), "list image permissions") {
+		t.Fatalf("expected list permissions error, got %v", err)
+	}
+}

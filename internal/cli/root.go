@@ -2,41 +2,38 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/towardsthecloud/aws-toolbox/internal/cliutil"
 	"github.com/towardsthecloud/aws-toolbox/internal/service/appstream"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/cfn"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/cloudwatch"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/ec2"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/ecs"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/efs"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/iam"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/kms"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/org"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/r53"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/s3"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/sagemaker"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/ssm"
 	"github.com/towardsthecloud/aws-toolbox/internal/version"
 )
-
-type GlobalOptions struct {
-	Profile      string
-	Region       string
-	DryRun       bool
-	OutputFormat string
-	NoConfirm    bool
-	ShowVersion  bool
-}
-
-var validOutputFormats = map[string]struct{}{
-	"table": {},
-	"json":  {},
-	"text":  {},
-}
 
 func Execute() error {
 	return NewRootCommand().Execute()
 }
 
 func NewRootCommand() *cobra.Command {
-	opts := &GlobalOptions{}
+	opts := &cliutil.GlobalOptions{}
 
 	rootCmd := &cobra.Command{
 		Use:   "awstbx",
 		Short: "Unified CLI for AWS infrastructure automation",
 		Long:  "awstbx unifies AWS automation commands behind a consistent CLI and safety defaults.",
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			if _, ok := validOutputFormats[opts.OutputFormat]; !ok {
+			if _, ok := cliutil.ValidOutputFormats[opts.OutputFormat]; !ok {
 				return fmt.Errorf("invalid --output %q (valid: table, json, text)", opts.OutputFormat)
 			}
 			return nil
@@ -64,32 +61,20 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(newVersionCommand())
 
 	rootCmd.AddCommand(appstream.NewCommand())
-	rootCmd.AddCommand(newCFNCommand())
-	rootCmd.AddCommand(newCloudWatchCommand())
-	rootCmd.AddCommand(newEC2Command())
-	rootCmd.AddCommand(newECSCommand())
-	rootCmd.AddCommand(newEFSCommand())
-	rootCmd.AddCommand(newIAMCommand())
-	rootCmd.AddCommand(newKMSCommand())
-	rootCmd.AddCommand(newOrgCommand())
-	rootCmd.AddCommand(newR53Command())
-	rootCmd.AddCommand(newS3Command())
-	rootCmd.AddCommand(newSageMakerCommand())
-	rootCmd.AddCommand(newSSMCommand())
+	rootCmd.AddCommand(cfn.NewCommand())
+	rootCmd.AddCommand(cloudwatch.NewCommand())
+	rootCmd.AddCommand(ec2.NewCommand())
+	rootCmd.AddCommand(ecs.NewCommand())
+	rootCmd.AddCommand(efs.NewCommand())
+	rootCmd.AddCommand(iam.NewCommand())
+	rootCmd.AddCommand(kms.NewCommand())
+	rootCmd.AddCommand(org.NewCommand())
+	rootCmd.AddCommand(r53.NewCommand())
+	rootCmd.AddCommand(s3.NewCommand())
+	rootCmd.AddCommand(sagemaker.NewCommand())
+	rootCmd.AddCommand(ssm.NewCommand())
 
 	applyCommandHelpDefaults(rootCmd)
 
 	return rootCmd
-}
-
-func newServiceGroupCommand(use, short string) *cobra.Command {
-	return &cobra.Command{
-		Use:   use,
-		Short: short,
-		Long:  fmt.Sprintf("Commands for %s operations.", strings.ToUpper(use)),
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
-		SilenceUsage: true,
-	}
 }

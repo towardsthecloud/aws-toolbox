@@ -54,33 +54,34 @@ func NewCommandRuntime(cmd *cobra.Command) (CommandRuntime, error) {
 // GlobalOptionsFromCommand reads persistent flags from the root command.
 func GlobalOptionsFromCommand(cmd *cobra.Command) (GlobalOptions, error) {
 	root := cmd.Root()
+	pf := root.PersistentFlags()
 
-	profile, err := root.Flags().GetString("profile")
+	profile, err := pf.GetString("profile")
 	if err != nil {
 		return GlobalOptions{}, fmt.Errorf("read --profile: %w", err)
 	}
 
-	region, err := root.Flags().GetString("region")
+	region, err := pf.GetString("region")
 	if err != nil {
 		return GlobalOptions{}, fmt.Errorf("read --region: %w", err)
 	}
 
-	dryRun, err := root.Flags().GetBool("dry-run")
+	dryRun, err := pf.GetBool("dry-run")
 	if err != nil {
 		return GlobalOptions{}, fmt.Errorf("read --dry-run: %w", err)
 	}
 
-	outputFormat, err := root.Flags().GetString("output")
+	outputFormat, err := pf.GetString("output")
 	if err != nil {
 		return GlobalOptions{}, fmt.Errorf("read --output: %w", err)
 	}
 
-	noConfirm, err := root.Flags().GetBool("no-confirm")
+	noConfirm, err := pf.GetBool("no-confirm")
 	if err != nil {
 		return GlobalOptions{}, fmt.Errorf("read --no-confirm: %w", err)
 	}
 
-	showVersion, err := root.Flags().GetBool("version")
+	showVersion, err := pf.GetBool("version")
 	if err != nil {
 		return GlobalOptions{}, fmt.Errorf("read --version: %w", err)
 	}
