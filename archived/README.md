@@ -1,4 +1,4 @@
-# old-scripts Archive
+# archived Scripts Archive
 
 This directory is retained as an archived reference for the pre-`awstbx` scripts.
 
