@@ -13,7 +13,7 @@ It provides:
 ### Homebrew
 
 ```bash
-brew tap towardsthecloud/tap
+brew tap towardsthecloud/homebrew-tap
 brew install awstbx
 ```
 
@@ -140,6 +140,24 @@ make coverage
 make build
 make docs
 ```
+
+## Release Workflow
+
+```bash
+# Generate changelog from commits
+make changelog
+
+# Create and push a release tag (must be on main with a clean tree)
+make tag VERSION=v1.2.3
+```
+
+Pushing a `v*` tag triggers the release workflow, which:
+- builds release artifacts with GoReleaser
+- creates/updates the GitHub Release using `git-cliff` notes
+- updates the Homebrew formula in `towardsthecloud/homebrew-tap`
+
+Required repository secret:
+- `HOMEBREW_TAP_GITHUB_TOKEN` with `repo` scope (used for cross-repo tap updates)
 
 ## Legacy Scripts
 

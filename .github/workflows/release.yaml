@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main
+        run: git fetch --no-tags origin main
+
+      - name: Ensure tag commit is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
+            echo "Tag commit $GITHUB_SHA is not reachable from origin/main."
+            exit 1
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install git-cliff
+        run: |
+          set -eu
+          GIT_CLIFF_VERSION="2.12.0"
+          ARCHIVE="git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          URL="https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/${ARCHIVE}"
+          TMPDIR="$(mktemp -d)"
+          curl -fsSL "$URL" -o "${TMPDIR}/${ARCHIVE}"
+          tar -xzf "${TMPDIR}/${ARCHIVE}" -C "${TMPDIR}"
+          sudo install "${TMPDIR}/git-cliff-${GIT_CLIFF_VERSION}/git-cliff" /usr/local/bin/git-cliff
+          rm -rf "${TMPDIR}"
+
+      - name: Generate release notes
+        run: git-cliff --config cliff.toml --current --strip all --output .release-notes.md
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean --release-notes .release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

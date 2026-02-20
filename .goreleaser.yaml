@@ -1,0 +1,42 @@
+version: 2
+
+project_name: awstbx
+
+builds:
+  - id: awstbx
+    main: ./cmd/awstbx
+    binary: awstbx
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/towardsthecloud/aws-toolbox/internal/version.Version={{.Version}}
+      - -X github.com/towardsthecloud/aws-toolbox/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/towardsthecloud/aws-toolbox/internal/version.Date={{.Date}}
+
+archives:
+  - id: awstbx
+    formats: [tar.gz]
+    name_template: "awstbx_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+brews:
+  - repository:
+      owner: towardsthecloud
+      name: homebrew-tap
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/towardsthecloud/aws-toolbox
+    description: Unified CLI for AWS infrastructure automation
+    license: MIT
+    install: |
+      bin.install "awstbx"
+
+changelog:
+  disable: true
