@@ -44,6 +44,25 @@ func TestOrgListAccountsAllOutputFormats(t *testing.T) {
 		listAccountsFn: func(_ context.Context, _ *organizations.ListAccountsInput, _ ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error) {
 			return &organizations.ListAccountsOutput{Accounts: []organizationtypes.Account{{Id: cliutil.Ptr("123456789012"), Name: cliutil.Ptr("sandbox"), Email: cliutil.Ptr("sandbox@example.com"), Status: organizationtypes.AccountStatusActive}}}, nil
 		},
+		listParentsFn: func(_ context.Context, in *organizations.ListParentsInput, _ ...func(*organizations.Options)) (*organizations.ListParentsOutput, error) {
+			if cliutil.PointerToString(in.ChildId) != "123456789012" {
+				return &organizations.ListParentsOutput{}, nil
+			}
+			return &organizations.ListParentsOutput{
+				Parents: []organizationtypes.Parent{{Id: cliutil.Ptr("ou-1"), Type: organizationtypes.ParentTypeOrganizationalUnit}},
+			}, nil
+		},
+		describeOUFn: func(_ context.Context, in *organizations.DescribeOrganizationalUnitInput, _ ...func(*organizations.Options)) (*organizations.DescribeOrganizationalUnitOutput, error) {
+			if cliutil.PointerToString(in.OrganizationalUnitId) != "ou-1" {
+				return &organizations.DescribeOrganizationalUnitOutput{}, nil
+			}
+			return &organizations.DescribeOrganizationalUnitOutput{
+				OrganizationalUnit: &organizationtypes.OrganizationalUnit{
+					Id:   cliutil.Ptr("ou-1"),
+					Name: cliutil.Ptr("Sandbox"),
+				},
+			}, nil
+		},
 	}
 
 	withMockDeps(
@@ -62,6 +81,9 @@ func TestOrgListAccountsAllOutputFormats(t *testing.T) {
 		}
 		if !strings.Contains(output, "123456789012") {
 			t.Fatalf("expected account id in output for format=%s: %s", format, output)
+		}
+		if !strings.Contains(output, "/Sandbox") {
+			t.Fatalf("expected parent path in output for format=%s: %s", format, output)
 		}
 	}
 }
@@ -104,6 +126,40 @@ func TestOrgListAccountsByOUFilter(t *testing.T) {
 	}
 	if !strings.Contains(output, "\"parent\": \"/Sandbox\"") {
 		t.Fatalf("expected OU path in output: %s", output)
+	}
+}
+
+func TestOrgListAccountsDefaultsRootParentPath(t *testing.T) {
+	orgClient := &mockOrganizationsClient{
+		listAccountsFn: func(_ context.Context, _ *organizations.ListAccountsInput, _ ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error) {
+			return &organizations.ListAccountsOutput{
+				Accounts: []organizationtypes.Account{
+					{Id: cliutil.Ptr("123456789012"), Name: cliutil.Ptr("sandbox"), Email: cliutil.Ptr("sandbox@example.com"), Status: organizationtypes.AccountStatusActive},
+				},
+			}, nil
+		},
+		listParentsFn: func(_ context.Context, _ *organizations.ListParentsInput, _ ...func(*organizations.Options)) (*organizations.ListParentsOutput, error) {
+			return &organizations.ListParentsOutput{
+				Parents: []organizationtypes.Parent{{Id: cliutil.Ptr("r-root"), Type: organizationtypes.ParentTypeRoot}},
+			}, nil
+		},
+	}
+
+	withMockDeps(
+		t,
+		func(_, _ string) (awssdk.Config, error) { return awssdk.Config{Region: "us-east-1"}, nil },
+		func(awssdk.Config) OrganizationsAPI { return orgClient },
+		func(awssdk.Config) SSOAdminAPI { return &mockSSOAdminClient{} },
+		func(awssdk.Config) IdentityStoreAPI { return &mockIdentityStoreClient{} },
+		func(awssdk.Config) AccountAPI { return &mockAccountClient{} },
+	)
+
+	output, err := executeCommand(t, "--output", "json", "org", "list-accounts")
+	if err != nil {
+		t.Fatalf("execute list-accounts: %v", err)
+	}
+	if !strings.Contains(output, "\"parent\": \"/\"") {
+		t.Fatalf("expected root parent path in output: %s", output)
 	}
 }
 

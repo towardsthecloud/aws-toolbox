@@ -3,7 +3,6 @@ package s3
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -110,7 +109,11 @@ func runDownloadBucket(cmd *cobra.Command, bucket, prefix, outputDir string) err
 		if relativeKey == "" {
 			relativeKey = key
 		}
-		targetPath := filepath.Join(outputDir, relativeKey)
+		targetPath, pathErr := resolveDownloadTargetPath(outputDir, relativeKey)
+		if pathErr != nil {
+			rows = append(rows, []string{bucket, key, "", cliutil.FailedAction(pathErr)})
+			continue
+		}
 
 		action := "would-download"
 		if runtime.Options.DryRun {

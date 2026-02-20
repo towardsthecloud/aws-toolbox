@@ -788,6 +788,40 @@ func TestDownloadBucketDownloadError(t *testing.T) {
 	}
 }
 
+func TestDownloadBucketRejectsPathTraversal(t *testing.T) {
+	now := time.Now().UTC()
+	tmpDir := t.TempDir()
+	outsideFileName := filepath.Base(tmpDir) + "-outside-test-traversal.txt"
+	outsideFile := filepath.Join(filepath.Dir(tmpDir), outsideFileName)
+
+	client := &mockClient{
+		listObjectsV2Fn: func(_ context.Context, _ *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+			return &s3.ListObjectsV2Output{
+				Contents: []s3types.Object{
+					{Key: cliutil.Ptr("prefix/../../" + outsideFileName), LastModified: &now, Size: cliutil.Ptr(int64(5))},
+				},
+			}, nil
+		},
+		getObjectFn: func(_ context.Context, _ *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+			t.Fatal("GetObject should not be called for traversal keys")
+			return nil, nil
+		},
+	}
+
+	withMockDeps(t, mockLoader, mockFactory(client))
+
+	output, err := executeCommand(t, "--output", "json", "s3", "download-bucket", "--bucket-name", "my-bucket", "--prefix", "prefix/", "--output-dir", tmpDir)
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(output, "failed:") || !strings.Contains(output, "invalid object key path") {
+		t.Fatalf("expected traversal failure in output: %s", output)
+	}
+	if _, statErr := os.Stat(outsideFile); !os.IsNotExist(statErr) {
+		t.Fatalf("expected %s not to exist; statErr=%v", outsideFile, statErr)
+	}
+}
+
 func TestDownloadBucketListError(t *testing.T) {
 	client := &mockClient{
 		listObjectsV2Fn: func(_ context.Context, _ *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {

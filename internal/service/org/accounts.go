@@ -27,13 +27,21 @@ func runListAccounts(cmd *cobra.Command, ouNames []string) error {
 	accountRows := make(map[string][]string)
 
 	if len(ouNames) == 0 {
+		parentPathByID := make(map[string]string)
 		accounts, listErr := listAccounts(ctx, orgClient)
 		if listErr != nil {
 			return fmt.Errorf("list accounts: %s", awstbxaws.FormatUserError(listErr))
 		}
 		for _, account := range accounts {
 			id := cliutil.PointerToString(account.Id)
-			accountRows[id] = []string{id, cliutil.PointerToString(account.Name), cliutil.PointerToString(account.Email), string(account.Status), ""}
+			if id == "" {
+				continue
+			}
+			parentPath, parentErr := resolveAccountParentPath(ctx, orgClient, id, parentPathByID)
+			if parentErr != nil {
+				return fmt.Errorf("resolve parent for account %s: %s", id, awstbxaws.FormatUserError(parentErr))
+			}
+			accountRows[id] = []string{id, cliutil.PointerToString(account.Name), cliutil.PointerToString(account.Email), string(account.Status), parentPath}
 		}
 	} else {
 		rootID, _, rootErr := getRoot(ctx, orgClient)
@@ -51,6 +59,9 @@ func runListAccounts(cmd *cobra.Command, ouNames []string) error {
 			}
 			for _, account := range accounts {
 				id := cliutil.PointerToString(account.Id)
+				if id == "" {
+					continue
+				}
 				accountRows[id] = []string{id, cliutil.PointerToString(account.Name), cliutil.PointerToString(account.Email), string(account.Status), "/" + cliutil.PointerToString(ou.Name)}
 			}
 		}
@@ -186,6 +197,60 @@ func listAccountsForParent(ctx context.Context, orgClient OrganizationsAPI, pare
 			NextToken: out.NextToken,
 		}, nil
 	})
+}
+
+func listParentsForChild(ctx context.Context, orgClient OrganizationsAPI, childID string) ([]organizationtypes.Parent, error) {
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[organizationtypes.Parent], error) {
+		out, err := orgClient.ListParents(callCtx, &organizations.ListParentsInput{ChildId: cliutil.Ptr(childID), NextToken: nextToken})
+		if err != nil {
+			return awstbxaws.PageResult[organizationtypes.Parent]{}, err
+		}
+		return awstbxaws.PageResult[organizationtypes.Parent]{
+			Items:     out.Parents,
+			NextToken: out.NextToken,
+		}, nil
+	})
+}
+
+func resolveAccountParentPath(ctx context.Context, orgClient OrganizationsAPI, accountID string, parentPathByID map[string]string) (string, error) {
+	parents, err := listParentsForChild(ctx, orgClient, accountID)
+	if err != nil {
+		return "", err
+	}
+	if len(parents) == 0 {
+		return "", nil
+	}
+
+	parent := parents[0]
+	parentID := cliutil.PointerToString(parent.Id)
+	if path, ok := parentPathByID[parentID]; ok {
+		return path, nil
+	}
+
+	switch parent.Type {
+	case organizationtypes.ParentTypeRoot:
+		parentPathByID[parentID] = "/"
+		return "/", nil
+	case organizationtypes.ParentTypeOrganizationalUnit:
+		out, err := orgClient.DescribeOrganizationalUnit(ctx, &organizations.DescribeOrganizationalUnitInput{OrganizationalUnitId: cliutil.Ptr(parentID)})
+		if err != nil {
+			return "", err
+		}
+		name := cliutil.PointerToString(out.OrganizationalUnit.Name)
+		if name == "" {
+			name = parentID
+		}
+		path := "/" + name
+		parentPathByID[parentID] = path
+		return path, nil
+	default:
+		if parentID == "" {
+			return "", nil
+		}
+		path := "/" + parentID
+		parentPathByID[parentID] = path
+		return path, nil
+	}
 }
 
 func listOUsForParent(ctx context.Context, orgClient OrganizationsAPI, parentID string) ([]organizationtypes.OrganizationalUnit, error) {

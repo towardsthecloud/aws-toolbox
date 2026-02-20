@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -60,6 +61,27 @@ func downloadObject(ctx context.Context, client API, bucket, key, targetPath str
 	}
 
 	return nil
+}
+
+func resolveDownloadTargetPath(outputDir, relativeKey string) (string, error) {
+	normalizedKey := strings.ReplaceAll(relativeKey, "\\", "/")
+	normalizedKey = strings.TrimPrefix(normalizedKey, "/")
+	normalizedKey = path.Clean(normalizedKey)
+	if normalizedKey == "." || normalizedKey == ".." || strings.HasPrefix(normalizedKey, "../") {
+		return "", fmt.Errorf("invalid object key path %q", relativeKey)
+	}
+
+	basePath := filepath.Clean(outputDir)
+	targetPath := filepath.Join(basePath, filepath.FromSlash(normalizedKey))
+	relPath, err := filepath.Rel(basePath, targetPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve target path for key %q: %w", relativeKey, err)
+	}
+	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("invalid object key path %q", relativeKey)
+	}
+
+	return targetPath, nil
 }
 
 func normalizeKeyQueries(raw []string) []string {
