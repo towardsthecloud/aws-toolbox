@@ -8,55 +8,11 @@ import (
 	"time"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/appstream"
-	appstreamtypes "github.com/aws/aws-sdk-go-v2/service/appstream/types"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cloudformationtypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
-
-type mockAppStreamClient struct {
-	describeImagePermissionsFn func(context.Context, *appstream.DescribeImagePermissionsInput, ...func(*appstream.Options)) (*appstream.DescribeImagePermissionsOutput, error)
-	deleteImagePermissionsFn   func(context.Context, *appstream.DeleteImagePermissionsInput, ...func(*appstream.Options)) (*appstream.DeleteImagePermissionsOutput, error)
-	deleteImageFn              func(context.Context, *appstream.DeleteImageInput, ...func(*appstream.Options)) (*appstream.DeleteImageOutput, error)
-}
-
-func (m *mockAppStreamClient) DescribeImagePermissions(ctx context.Context, in *appstream.DescribeImagePermissionsInput, optFns ...func(*appstream.Options)) (*appstream.DescribeImagePermissionsOutput, error) {
-	if m.describeImagePermissionsFn == nil {
-		return nil, errors.New("DescribeImagePermissions not mocked")
-	}
-	return m.describeImagePermissionsFn(ctx, in, optFns...)
-}
-
-func (m *mockAppStreamClient) DeleteImagePermissions(ctx context.Context, in *appstream.DeleteImagePermissionsInput, optFns ...func(*appstream.Options)) (*appstream.DeleteImagePermissionsOutput, error) {
-	if m.deleteImagePermissionsFn == nil {
-		return nil, errors.New("DeleteImagePermissions not mocked")
-	}
-	return m.deleteImagePermissionsFn(ctx, in, optFns...)
-}
-
-func (m *mockAppStreamClient) DeleteImage(ctx context.Context, in *appstream.DeleteImageInput, optFns ...func(*appstream.Options)) (*appstream.DeleteImageOutput, error) {
-	if m.deleteImageFn == nil {
-		return nil, errors.New("DeleteImage not mocked")
-	}
-	return m.deleteImageFn(ctx, in, optFns...)
-}
-
-func withMockAppStreamDeps(t *testing.T, loader func(string, string) (awssdk.Config, error), newClient func(awssdk.Config) appStreamAPI) {
-	t.Helper()
-
-	oldLoader := appStreamLoadAWSConfig
-	oldNewClient := appStreamNewClient
-
-	appStreamLoadAWSConfig = loader
-	appStreamNewClient = newClient
-
-	t.Cleanup(func() {
-		appStreamLoadAWSConfig = oldLoader
-		appStreamNewClient = oldNewClient
-	})
-}
 
 type mockCFNClient struct {
 	deleteStackInstancesFn    func(context.Context, *cloudformation.DeleteStackInstancesInput, ...func(*cloudformation.Options)) (*cloudformation.DeleteStackInstancesOutput, error)
@@ -159,88 +115,6 @@ func withMockR53Deps(t *testing.T, loader func(string, string) (awssdk.Config, e
 		r53LoadAWSConfig = oldLoader
 		r53NewClient = oldNewClient
 	})
-}
-
-func TestMilestone5AppStreamDeleteImageRequiresName(t *testing.T) {
-	_, err := executeCommand(t, "appstream", "delete-image")
-	if err == nil || !strings.Contains(err.Error(), "--image-name is required") {
-		t.Fatalf("expected required name error, got %v", err)
-	}
-}
-
-func TestMilestone5AppStreamDeleteImageDryRun(t *testing.T) {
-	deletedPermissions := 0
-	deletedImages := 0
-
-	client := &mockAppStreamClient{
-		describeImagePermissionsFn: func(_ context.Context, _ *appstream.DescribeImagePermissionsInput, _ ...func(*appstream.Options)) (*appstream.DescribeImagePermissionsOutput, error) {
-			return &appstream.DescribeImagePermissionsOutput{SharedImagePermissionsList: []appstreamtypes.SharedImagePermissions{
-				{SharedAccountId: ptr("111111111111")},
-				{SharedAccountId: ptr("222222222222")},
-			}}, nil
-		},
-		deleteImagePermissionsFn: func(_ context.Context, _ *appstream.DeleteImagePermissionsInput, _ ...func(*appstream.Options)) (*appstream.DeleteImagePermissionsOutput, error) {
-			deletedPermissions++
-			return &appstream.DeleteImagePermissionsOutput{}, nil
-		},
-		deleteImageFn: func(_ context.Context, _ *appstream.DeleteImageInput, _ ...func(*appstream.Options)) (*appstream.DeleteImageOutput, error) {
-			deletedImages++
-			return &appstream.DeleteImageOutput{}, nil
-		},
-	}
-
-	withMockAppStreamDeps(
-		t,
-		func(_, _ string) (awssdk.Config, error) { return awssdk.Config{Region: "us-east-1"}, nil },
-		func(awssdk.Config) appStreamAPI { return client },
-	)
-
-	output, err := executeCommand(t, "--output", "json", "--dry-run", "appstream", "delete-image", "--image-name", "image-a")
-	if err != nil {
-		t.Fatalf("execute appstream delete-image dry-run: %v", err)
-	}
-	if deletedPermissions != 0 || deletedImages != 0 {
-		t.Fatalf("expected no deletion calls in dry-run, got permissions=%d image=%d", deletedPermissions, deletedImages)
-	}
-	if !strings.Contains(output, "would-delete") {
-		t.Fatalf("unexpected output: %s", output)
-	}
-}
-
-func TestMilestone5AppStreamDeleteImageNoConfirmExecutes(t *testing.T) {
-	deletedPermissions := 0
-	deletedImages := 0
-
-	client := &mockAppStreamClient{
-		describeImagePermissionsFn: func(_ context.Context, _ *appstream.DescribeImagePermissionsInput, _ ...func(*appstream.Options)) (*appstream.DescribeImagePermissionsOutput, error) {
-			return &appstream.DescribeImagePermissionsOutput{SharedImagePermissionsList: []appstreamtypes.SharedImagePermissions{{SharedAccountId: ptr("111111111111")}}}, nil
-		},
-		deleteImagePermissionsFn: func(_ context.Context, _ *appstream.DeleteImagePermissionsInput, _ ...func(*appstream.Options)) (*appstream.DeleteImagePermissionsOutput, error) {
-			deletedPermissions++
-			return &appstream.DeleteImagePermissionsOutput{}, nil
-		},
-		deleteImageFn: func(_ context.Context, _ *appstream.DeleteImageInput, _ ...func(*appstream.Options)) (*appstream.DeleteImageOutput, error) {
-			deletedImages++
-			return &appstream.DeleteImageOutput{}, nil
-		},
-	}
-
-	withMockAppStreamDeps(
-		t,
-		func(_, _ string) (awssdk.Config, error) { return awssdk.Config{Region: "us-east-1"}, nil },
-		func(awssdk.Config) appStreamAPI { return client },
-	)
-
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "appstream", "delete-image", "--image-name", "image-a")
-	if err != nil {
-		t.Fatalf("execute appstream delete-image --no-confirm: %v", err)
-	}
-	if deletedPermissions != 1 || deletedImages != 1 {
-		t.Fatalf("expected delete calls, got permissions=%d image=%d", deletedPermissions, deletedImages)
-	}
-	if !strings.Contains(output, "deleted") {
-		t.Fatalf("unexpected output: %s", output)
-	}
 }
 
 func TestMilestone5CFNDeleteStackSetRequiresName(t *testing.T) {
