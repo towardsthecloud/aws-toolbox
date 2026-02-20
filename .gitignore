@@ -1,2 +1,8 @@
 __pycache__
 .python-version
+bin/
+coverage.out
+docs/*
+!docs/migration.md
+!docs/reviews/
+!docs/reviews/*.md

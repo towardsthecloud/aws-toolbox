@@ -4,8 +4,11 @@
 
 Please check if your PR fulfills the following requirements:
 
-- [ ] Docstrings or comments have been reviewed and added / updated if needed
-- [ ] The change has been tested and confirmed working (Tested on? OS, AWS CLI Version)
+- [ ] I ran `make lint`
+- [ ] I ran `make test`
+- [ ] I ran `make build`
+- [ ] I updated docs/help text where behavior or flags changed
+- [ ] I added/updated tests for user-visible behavior changes
 
 ## Pull request type
 
@@ -15,13 +18,19 @@ Please check if your PR fulfills the following requirements:
 
 Please check the type of change your PR introduces:
 
-- [ ] Bugfix (if it's an open issue, please add the issue number):
-- [ ] Feature e.g. new script (please describe):
+- [ ] Bugfix (if it's an open issue, please add the issue number)
+- [ ] Feature (new `awstbx` command/flag/output behavior)
 - [ ] Code style update (formatting, renaming)
 - [ ] Refactoring (no functional changes, no api changes)
 - [ ] Build related changes
 - [ ] Documentation content changes
-- [ ] Other (please describe):
+- [ ] Other (please describe)
+
+## Validation details
+
+- OS tested:
+- `awstbx --version` output:
+- Commands exercised:
 
 ## Other information
 

@@ -1,0 +1,117 @@
+package s3
+
+import (
+	"context"
+
+	awssdk "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/spf13/cobra"
+	awstbxaws "github.com/towardsthecloud/aws-toolbox/internal/aws"
+	"github.com/towardsthecloud/aws-toolbox/internal/cliutil"
+)
+
+// API is the subset of the S3 client used by this package.
+type API interface {
+	DeleteBucket(context.Context, *s3.DeleteBucketInput, ...func(*s3.Options)) (*s3.DeleteBucketOutput, error)
+	DeleteObjects(context.Context, *s3.DeleteObjectsInput, ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error)
+	GetBucketVersioning(context.Context, *s3.GetBucketVersioningInput, ...func(*s3.Options)) (*s3.GetBucketVersioningOutput, error)
+	GetObject(context.Context, *s3.GetObjectInput, ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	ListBuckets(context.Context, *s3.ListBucketsInput, ...func(*s3.Options)) (*s3.ListBucketsOutput, error)
+	ListObjectVersions(context.Context, *s3.ListObjectVersionsInput, ...func(*s3.Options)) (*s3.ListObjectVersionsOutput, error)
+	ListObjectsV2(context.Context, *s3.ListObjectsV2Input, ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+}
+
+var loadAWSConfig = awstbxaws.LoadAWSConfig
+var newClient = func(cfg awssdk.Config) API {
+	return s3.NewFromConfig(cfg)
+}
+
+// NewCommand returns the s3 service group command.
+func NewCommand() *cobra.Command {
+	cmd := cliutil.NewServiceGroupCommand("s3", "Manage S3 resources")
+
+	cmd.AddCommand(newDeleteBucketsCommand())
+	cmd.AddCommand(newDownloadBucketCommand())
+	cmd.AddCommand(newListOldFilesCommand())
+	cmd.AddCommand(newSearchObjectsCommand())
+
+	return cmd
+}
+
+func newDeleteBucketsCommand() *cobra.Command {
+	var emptyOnly bool
+	var filterNameContains string
+
+	cmd := &cobra.Command{
+		Use:   "delete-buckets",
+		Short: "Delete S3 buckets by emptiness and/or name match",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runDeleteBuckets(cmd, emptyOnly, filterNameContains)
+		},
+		SilenceUsage: true,
+	}
+	cmd.Flags().BoolVar(&emptyOnly, "empty", false, "Only target empty buckets with versioning disabled")
+	cmd.Flags().StringVar(&filterNameContains, "filter-name-contains", "", "Only target buckets containing this text")
+
+	return cmd
+}
+
+func newDownloadBucketCommand() *cobra.Command {
+	var bucketName string
+	var prefix string
+	var outputDir string
+
+	cmd := &cobra.Command{
+		Use:   "download-bucket",
+		Short: "Download S3 objects from a bucket prefix",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runDownloadBucket(cmd, bucketName, prefix, outputDir)
+		},
+		SilenceUsage: true,
+	}
+	cmd.Flags().StringVar(&bucketName, "bucket-name", "", "Bucket name")
+	cmd.Flags().StringVar(&prefix, "prefix", "", "Object key prefix to download")
+	cmd.Flags().StringVar(&outputDir, "output-dir", ".", "Local directory for downloaded files")
+
+	return cmd
+}
+
+func newListOldFilesCommand() *cobra.Command {
+	var bucketName string
+	var prefix string
+	var olderThanDays int
+
+	cmd := &cobra.Command{
+		Use:   "list-old-files",
+		Short: "List objects older than a threshold",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runListOldFiles(cmd, bucketName, prefix, olderThanDays)
+		},
+		SilenceUsage: true,
+	}
+	cmd.Flags().StringVar(&bucketName, "bucket-name", "", "Bucket name")
+	cmd.Flags().StringVar(&prefix, "prefix", "", "Optional key prefix")
+	cmd.Flags().IntVar(&olderThanDays, "older-than-days", 60, "Only show files older than this many days")
+
+	return cmd
+}
+
+func newSearchObjectsCommand() *cobra.Command {
+	var bucketName string
+	var prefix string
+	var keys []string
+
+	cmd := &cobra.Command{
+		Use:   "search-objects",
+		Short: "Search S3 objects by prefix and/or key list",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runSearchObjects(cmd, bucketName, prefix, keys)
+		},
+		SilenceUsage: true,
+	}
+	cmd.Flags().StringVar(&bucketName, "bucket-name", "", "Bucket name")
+	cmd.Flags().StringVar(&prefix, "prefix", "", "Optional key prefix filter")
+	cmd.Flags().StringSliceVar(&keys, "keys", nil, "Comma-separated keys to search for")
+
+	return cmd
+}

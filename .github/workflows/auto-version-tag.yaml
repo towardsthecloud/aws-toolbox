@@ -1,0 +1,158 @@
+name: Auto Version Tag
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+concurrency:
+  group: version-tag-${{ github.event.pull_request.base.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  create-version-tag:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version bump type from labels
+        id: bump-type
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            let bumpType = 'patch';
+
+            if (labels.includes('major')) {
+              bumpType = 'major';
+            } else if (labels.includes('minor')) {
+              bumpType = 'minor';
+            } else if (labels.includes('patch')) {
+              bumpType = 'patch';
+            }
+
+            core.setOutput('bump_type', bumpType);
+            return bumpType;
+
+      - name: Calculate next version
+        id: version
+        env:
+          BUMP_TYPE: ${{ steps.bump-type.outputs.bump_type }}
+        run: |
+          set -eu
+          git fetch --tags --force
+          latest_tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
+
+          if ! printf '%s' "$latest_tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Latest tag '$latest_tag' is not SemVer (vMAJOR.MINOR.PATCH)."
+            exit 1
+          fi
+
+          version="${latest_tag#v}"
+          IFS='.' read -r major minor patch <<< "$version"
+
+          case "$BUMP_TYPE" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+            *)
+              echo "Unsupported bump type: $BUMP_TYPE"
+              exit 1
+              ;;
+          esac
+
+          new_version="v${major}.${minor}.${patch}"
+
+          if git rev-parse "$new_version" >/dev/null 2>&1; then
+            echo "Tag $new_version already exists."
+            exit 1
+          fi
+
+          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION
+
+          Merged PR #${PR_NUMBER}: ${PR_TITLE}
+          Author: @${PR_AUTHOR}
+
+          Automated release by github-actions"
+          git push origin "$NEW_VERSION"
+
+      - name: Comment on PR with success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const newVersion = '${{ steps.version.outputs.new_version }}';
+            const latestTag = '${{ steps.version.outputs.latest_tag }}';
+            const bumpType = '${{ steps.bump-type.outputs.bump_type }}';
+
+            const body = [
+              'Version tag created successfully.',
+              '',
+              `- New version: \`${newVersion}\``,
+              `- Previous version: \`${latestTag}\``,
+              `- Bump type: \`${bumpType}\``,
+              '',
+              `Release workflow should now run for \`${newVersion}\`.`
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body
+            });
+
+      - name: Comment on PR with failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              'Automatic version tagging failed.',
+              '',
+              `See workflow logs: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body
+            });

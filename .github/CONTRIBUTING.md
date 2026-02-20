@@ -1,63 +1,43 @@
 # Contribution Guidelines
 
-Thank you for your interest in contributing to the [AWS Toolbox.](https://github.com/towardsthecloud/aws-toolbox)
-
-Please read through this document before submitting any issues or pull requests to ensure we have all the necessary information to effectively respond to your issue or contribution.
+Thank you for your interest in contributing to [AWS Toolbox](https://github.com/towardsthecloud/aws-toolbox).
 
 ## Reporting Bugs or Feature Requests
 
-We welcome you to use the GitHub issue tracker to report bugs or suggest features.
+Use the GitHub issue tracker to report bugs or suggest features.
+Before opening an issue, check existing open and recently closed issues first.
 
-When filing an issue, please check [existing open](https://github.com/towardsthecloud/aws-toolbox/issues), or [recently closed](https://github.com/towardsthecloud/aws-toolbox/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20), issues to make sure somebody else hasn't already reported the issue. Please try to include as much information as you can.
+## Development Setup
 
-## Development Environment Setup
+This repository is now centered on the `awstbx` Go CLI.
 
-Before contributing, please set up your development environment:
-
-1. **Install dependencies**: Install the required Python packages from the root of the repository:
+1. Install Go (version from `go.mod`).
+2. Install project tooling:
    ```bash
-   pip install -r requirements.txt
+   make setup
+   ```
+3. Run local checks before opening a PR:
+   ```bash
+   make fmt
+   make lint
+   make test
+   make build
    ```
 
-2. **Install VSCode Extension**: For better boto3 code completion and type checking, install the [AWS boto3 VSCode extension](https://marketplace.visualstudio.com/items?itemName=Boto3typed.boto3-ide). This extension provides:
-   - IntelliSense and type checking for all boto3 services
-   - Code completion for AWS API methods and parameters
-   - Better error detection and linting feedback
+## Pull Requests
 
-## Contributing new scripts via Pull Requests
+Before opening a pull request:
 
-Contributions via pull requests are much appreciated. Before sending us a pull request, please ensure that:
+1. Start from the latest `main` branch.
+2. Keep the change focused and well-scoped.
+3. Use clear commit messages (Conventional Commits preferred).
+4. Ensure CI passes.
 
-1. You are working against the latest source on the _main_ branch.
-2. You check existing open, and recently merged, pull requests to make sure someone else hasn't made a similar request already.
-3. You open an issue to discuss any significant work - we would hate for your time to be wasted.
+## Legacy Scripts
 
-To send us a pull request, please:
-
-1. Fork the repository.
-2. Modify the source, focusing on the specific change you are contributing.
-3. Reformat all the code, for Python scripts we use Black and for linting we use Flake8 with the following arguments: "--ignore=E203,E266,E501,F401,W503"
-4. If you commit and push the changes in your fork it will automatically trigger a linter action in GitHub Actions to validate the change.
-5. Commit to your fork using clear commit messages.
-6. Send us a pull request, answering any default questions in the pull request interface.
-7. Stay involved in the conversation.
-
-GitHub provides additional documentation on [forking a repository](https://help.github.com/articles/fork-a-repo/) and
-[creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
-
-## Updating your PR
-
-If the maintainers notice anything that we'd like changed, we'll ask you to edit your PR before we merge it. There's no need to open a new PR, just edit the existing one. If you're not sure how to do that, [then here is a guide](https://github.com/RichardLitt/knowledge/blob/master/github/amending-a-commit-guide.md) on the different ways you can update your PR so that we can merge it.
-
-## Criteria for accepting scripts
-
-We want to keep the quality of the scripts in our list as high as possible. In most cases, we will check for things like the following:
-
-- Whether the script solves a repetitive task.
-- Whether the script can give better insights on AWS Resources.
-- Whether the script contains docstrings/comments at the top to explain it's functionality.
-- Consider if the script is significantly useful for both new and experienced AWS CLI users.
+Historic Python/shell scripts are kept under `archived/` for reference only.
+They are not the primary supported interface.
 
 ## Licensing
 
-See the [LICENSE](https://github.com/towardsthecloud/aws-toolbox/blob/main/LICENSE) file for our project's licensing. We will ask you to confirm the licensing of your contribution.
+See the [LICENSE](https://github.com/towardsthecloud/aws-toolbox/blob/main/LICENSE) file for project licensing.
