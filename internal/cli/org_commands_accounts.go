@@ -162,54 +162,42 @@ func getOrgRoot(ctx context.Context, orgClient organizationsAPI) (string, string
 }
 
 func listOrgAccounts(ctx context.Context, orgClient organizationsAPI) ([]organizationtypes.Account, error) {
-	rows := make([]organizationtypes.Account, 0)
-	var nextToken *string
-	for {
-		out, err := orgClient.ListAccounts(ctx, &organizations.ListAccountsInput{NextToken: nextToken})
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[organizationtypes.Account], error) {
+		out, err := orgClient.ListAccounts(callCtx, &organizations.ListAccountsInput{NextToken: nextToken})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[organizationtypes.Account]{}, err
 		}
-		rows = append(rows, out.Accounts...)
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return rows, nil
+		return awstbxaws.PageResult[organizationtypes.Account]{
+			Items:     out.Accounts,
+			NextToken: out.NextToken,
+		}, nil
+	})
 }
 
 func listOrgAccountsForParent(ctx context.Context, orgClient organizationsAPI, parentID string) ([]organizationtypes.Account, error) {
-	rows := make([]organizationtypes.Account, 0)
-	var nextToken *string
-	for {
-		out, err := orgClient.ListAccountsForParent(ctx, &organizations.ListAccountsForParentInput{ParentId: ptr(parentID), NextToken: nextToken})
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[organizationtypes.Account], error) {
+		out, err := orgClient.ListAccountsForParent(callCtx, &organizations.ListAccountsForParentInput{ParentId: ptr(parentID), NextToken: nextToken})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[organizationtypes.Account]{}, err
 		}
-		rows = append(rows, out.Accounts...)
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return rows, nil
+		return awstbxaws.PageResult[organizationtypes.Account]{
+			Items:     out.Accounts,
+			NextToken: out.NextToken,
+		}, nil
+	})
 }
 
 func listOrgOUsForParent(ctx context.Context, orgClient organizationsAPI, parentID string) ([]organizationtypes.OrganizationalUnit, error) {
-	rows := make([]organizationtypes.OrganizationalUnit, 0)
-	var nextToken *string
-	for {
-		out, err := orgClient.ListOrganizationalUnitsForParent(ctx, &organizations.ListOrganizationalUnitsForParentInput{ParentId: ptr(parentID), NextToken: nextToken})
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[organizationtypes.OrganizationalUnit], error) {
+		out, err := orgClient.ListOrganizationalUnitsForParent(callCtx, &organizations.ListOrganizationalUnitsForParentInput{ParentId: ptr(parentID), NextToken: nextToken})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[organizationtypes.OrganizationalUnit]{}, err
 		}
-		rows = append(rows, out.OrganizationalUnits...)
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return rows, nil
+		return awstbxaws.PageResult[organizationtypes.OrganizationalUnit]{
+			Items:     out.OrganizationalUnits,
+			NextToken: out.NextToken,
+		}, nil
+	})
 }
 
 func findOUByName(ctx context.Context, orgClient organizationsAPI, rootID, ouName string) (organizationtypes.OrganizationalUnit, error) {

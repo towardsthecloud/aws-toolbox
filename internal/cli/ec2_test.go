@@ -194,7 +194,7 @@ func TestEC2DeleteAMIsDryRunFiltersUnusedAndRetention(t *testing.T) {
 	if !strings.Contains(output, "ami-old-unused") || strings.Contains(output, "ami-old-used") || strings.Contains(output, "ami-new-unused") {
 		t.Fatalf("unexpected output: %s", output)
 	}
-	if !strings.Contains(output, "would-deregister") {
+	if !strings.Contains(output, "would-delete") {
 		t.Fatalf("expected dry-run action in output: %s", output)
 	}
 }
@@ -224,7 +224,7 @@ func TestEC2DeleteAMIsExecutesWhenNoConfirm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute delete-amis: %v", err)
 	}
-	if deleted != 1 || !strings.Contains(output, "deregistered") {
+	if deleted != 1 || !strings.Contains(output, "deleted") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }
@@ -279,7 +279,7 @@ func TestEC2DeleteEIPsExecutesWhenNoConfirm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute delete-eips: %v", err)
 	}
-	if released != 1 || !strings.Contains(output, "released") {
+	if released != 1 || !strings.Contains(output, "deleted") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }
@@ -312,11 +312,11 @@ func TestEC2DeleteEIPsStatusMatchesSortedAllocationIDRows(t *testing.T) {
 		t.Fatalf("execute delete-eips: %v", err)
 	}
 
-	if !strings.Contains(output, "allocation_id=eipalloc-a public_ip=1.1.1.1 region=us-east-1 action=failed: release blocked") {
+	if !strings.Contains(output, "allocation_id=eipalloc-a public_ip=1.1.1.1 region=us-east-1 action=failed:release blocked") {
 		t.Fatalf("expected failed action to remain mapped to eipalloc-a: %s", output)
 	}
-	if !strings.Contains(output, "allocation_id=eipalloc-z public_ip=2.2.2.2 region=us-east-1 action=released") {
-		t.Fatalf("expected released action to remain mapped to eipalloc-z: %s", output)
+	if !strings.Contains(output, "allocation_id=eipalloc-z public_ip=2.2.2.2 region=us-east-1 action=deleted") {
+		t.Fatalf("expected deleted action to remain mapped to eipalloc-z: %s", output)
 	}
 }
 
@@ -468,7 +468,7 @@ func TestEC2DeleteSecurityGroupsSSHRulesDryRun(t *testing.T) {
 		t.Fatalf("execute delete-security-groups: %v", err)
 	}
 
-	if !strings.Contains(output, "sg-ssh") || strings.Contains(output, "sg-no-ssh") || !strings.Contains(output, "would-revoke-ssh") {
+	if !strings.Contains(output, "sg-ssh") || strings.Contains(output, "sg-no-ssh") || !strings.Contains(output, "would-delete") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }
@@ -498,7 +498,7 @@ func TestEC2DeleteSecurityGroupsDeleteWithTagAndType(t *testing.T) {
 		func(awssdk.Config, string) ec2API { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "ec2", "delete-security-groups", "--unused", "--tag", "env=prod", "--type", "rds")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "ec2", "delete-security-groups", "--unused", "--filter-tag", "env=prod", "--type", "rds")
 	if err != nil {
 		t.Fatalf("execute delete-security-groups: %v", err)
 	}
@@ -761,7 +761,7 @@ func TestEC2DeleteSecurityGroupsRevokeExecutesWhenNoConfirm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute delete-security-groups --ssh-rules: %v", err)
 	}
-	if revoked != 1 || !strings.Contains(output, "ssh-revoked") {
+	if revoked != 1 || !strings.Contains(output, "deleted") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }

@@ -94,16 +94,10 @@ func runSageMakerCleanupSpaces(cmd *cobra.Command, domainID string, spaceNames [
 		return fmt.Errorf("--domain-id is required when --spaces is set")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, sageMakerLoadAWSConfig, sageMakerNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := sageMakerLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := sageMakerNewClient(cfg)
 
 	domainIDs := make([]string, 0)
 	if domain != "" {
@@ -159,9 +153,9 @@ func runSageMakerCleanupSpaces(cmd *cobra.Command, domainID string, spaceNames [
 
 	rows := make([][]string, 0, len(targets))
 	for _, target := range targets {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{target.domainID, target.spaceName, target.status, action})
 	}
@@ -179,7 +173,7 @@ func runSageMakerCleanupSpaces(cmd *cobra.Command, domainID string, spaceNames [
 	}
 	if !ok {
 		for i := range rows {
-			rows[i][3] = "cancelled"
+			rows[i][3] = actionCancelled
 		}
 		return writeDataset(cmd, runtime, []string{"domain_id", "space_name", "status", "action"}, rows)
 	}
@@ -190,10 +184,10 @@ func runSageMakerCleanupSpaces(cmd *cobra.Command, domainID string, spaceNames [
 			SpaceName: ptr(target.spaceName),
 		})
 		if deleteErr != nil {
-			rows[i][3] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+			rows[i][3] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 			continue
 		}
-		rows[i][3] = "deleted"
+		rows[i][3] = actionDeleted
 	}
 
 	return writeDataset(cmd, runtime, []string{"domain_id", "space_name", "status", "action"}, rows)
@@ -209,23 +203,17 @@ func runSageMakerDeleteUserProfile(cmd *cobra.Command, domainID, userProfile str
 		return fmt.Errorf("--user-profile is required")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, sageMakerLoadAWSConfig, sageMakerNewClient)
 	if err != nil {
 		return err
 	}
 
-	cfg, err := sageMakerLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := sageMakerNewClient(cfg)
-
 	rows := make([][]string, 0)
 	operations := make([]sageMakerDeleteOperation, 0)
 	addOperation := func(step, resource string, execute func(context.Context) error) {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{domain, profile, step, resource, action})
 		operations = append(operations, sageMakerDeleteOperation{step: step, resource: resource, execute: execute, rowIndex: len(rows) - 1})
@@ -289,8 +277,8 @@ func runSageMakerDeleteUserProfile(cmd *cobra.Command, domainID, userProfile str
 	}
 	if !ok {
 		for i := range rows {
-			if rows[i][4] == "pending" {
-				rows[i][4] = "cancelled"
+			if rows[i][4] == actionPending {
+				rows[i][4] = actionCancelled
 			}
 		}
 		return writeDataset(cmd, runtime, []string{"domain_id", "user_profile", "step", "resource", "action"}, rows)
@@ -307,11 +295,11 @@ func runSageMakerDeleteUserProfile(cmd *cobra.Command, domainID, userProfile str
 
 		execErr := operation.execute(cmd.Context())
 		if execErr != nil {
-			rows[operation.rowIndex][4] = "failed: " + awstbxaws.FormatUserError(execErr)
+			rows[operation.rowIndex][4] = failedActionMessage(awstbxaws.FormatUserError(execErr))
 			dependencyFailure = true
 			continue
 		}
-		rows[operation.rowIndex][4] = "deleted"
+		rows[operation.rowIndex][4] = actionDeleted
 	}
 
 	if userProfileOperation == nil {
@@ -319,22 +307,22 @@ func runSageMakerDeleteUserProfile(cmd *cobra.Command, domainID, userProfile str
 	}
 
 	if dependencyFailure {
-		rows[userProfileOperation.rowIndex][4] = "skipped: dependency cleanup failed"
+		rows[userProfileOperation.rowIndex][4] = skippedActionMessage("dependency cleanup failed")
 		return writeDataset(cmd, runtime, []string{"domain_id", "user_profile", "step", "resource", "action"}, rows)
 	}
 
 	waitErr := waitForSageMakerUserProfileDependenciesDeleted(cmd.Context(), client, domain, profile)
 	if waitErr != nil {
-		rows[userProfileOperation.rowIndex][4] = "failed: " + awstbxaws.FormatUserError(waitErr)
+		rows[userProfileOperation.rowIndex][4] = failedActionMessage(awstbxaws.FormatUserError(waitErr))
 		return writeDataset(cmd, runtime, []string{"domain_id", "user_profile", "step", "resource", "action"}, rows)
 	}
 
 	execErr := userProfileOperation.execute(cmd.Context())
 	if execErr != nil {
-		rows[userProfileOperation.rowIndex][4] = "failed: " + awstbxaws.FormatUserError(execErr)
+		rows[userProfileOperation.rowIndex][4] = failedActionMessage(awstbxaws.FormatUserError(execErr))
 		return writeDataset(cmd, runtime, []string{"domain_id", "user_profile", "step", "resource", "action"}, rows)
 	}
-	rows[userProfileOperation.rowIndex][4] = "deleted"
+	rows[userProfileOperation.rowIndex][4] = actionDeleted
 
 	return writeDataset(cmd, runtime, []string{"domain_id", "user_profile", "step", "resource", "action"}, rows)
 }
@@ -370,26 +358,26 @@ func waitForSageMakerUserProfileDependenciesDeleted(ctx context.Context, client 
 }
 
 func listSageMakerDomainIDs(ctx context.Context, client sageMakerAPI) ([]string, error) {
-	items := make([]string, 0)
-	var nextToken *string
-
-	for {
-		page, err := client.ListDomains(ctx, &sagemaker.ListDomainsInput{NextToken: nextToken})
-		if err != nil {
-			return nil, err
+	domains, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[sagemakertypes.DomainDetails], error) {
+		page, listErr := client.ListDomains(callCtx, &sagemaker.ListDomainsInput{NextToken: nextToken})
+		if listErr != nil {
+			return awstbxaws.PageResult[sagemakertypes.DomainDetails]{}, listErr
 		}
+		return awstbxaws.PageResult[sagemakertypes.DomainDetails]{
+			Items:     page.Domains,
+			NextToken: page.NextToken,
+		}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-		for _, domain := range page.Domains {
-			domainID := pointerToString(domain.DomainId)
-			if domainID != "" {
-				items = append(items, domainID)
-			}
+	items := make([]string, 0, len(domains))
+	for _, domain := range domains {
+		domainID := pointerToString(domain.DomainId)
+		if domainID != "" {
+			items = append(items, domainID)
 		}
-
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
 	}
 
 	sort.Strings(items)
@@ -397,54 +385,47 @@ func listSageMakerDomainIDs(ctx context.Context, client sageMakerAPI) ([]string,
 }
 
 func listSageMakerSpaces(ctx context.Context, client sageMakerAPI, domainID string) ([]sagemakertypes.SpaceDetails, error) {
-	items := make([]sagemakertypes.SpaceDetails, 0)
-	var nextToken *string
-
-	for {
-		page, err := client.ListSpaces(ctx, &sagemaker.ListSpacesInput{DomainIdEquals: ptr(domainID), NextToken: nextToken})
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[sagemakertypes.SpaceDetails], error) {
+		page, err := client.ListSpaces(callCtx, &sagemaker.ListSpacesInput{DomainIdEquals: ptr(domainID), NextToken: nextToken})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[sagemakertypes.SpaceDetails]{}, err
 		}
-
-		items = append(items, page.Spaces...)
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
-	}
-
-	return items, nil
+		return awstbxaws.PageResult[sagemakertypes.SpaceDetails]{
+			Items:     page.Spaces,
+			NextToken: page.NextToken,
+		}, nil
+	})
 }
 
 func listSageMakerUserProfileApps(ctx context.Context, client sageMakerAPI, domainID, userProfile string, includeDeleting bool) ([]sagemakertypes.AppDetails, error) {
-	items := make([]sagemakertypes.AppDetails, 0)
-	var nextToken *string
-
-	for {
-		page, err := client.ListApps(ctx, &sagemaker.ListAppsInput{
+	apps, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[sagemakertypes.AppDetails], error) {
+		page, listErr := client.ListApps(callCtx, &sagemaker.ListAppsInput{
 			DomainIdEquals:        ptr(domainID),
 			UserProfileNameEquals: ptr(userProfile),
 			NextToken:             nextToken,
 		})
-		if err != nil {
-			return nil, err
+		if listErr != nil {
+			return awstbxaws.PageResult[sagemakertypes.AppDetails]{}, listErr
 		}
+		return awstbxaws.PageResult[sagemakertypes.AppDetails]{
+			Items:     page.Apps,
+			NextToken: page.NextToken,
+		}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-		for _, app := range page.Apps {
-			status := string(app.Status)
-			if strings.EqualFold(status, "Deleted") {
-				continue
-			}
-			if !includeDeleting && strings.EqualFold(status, "Deleting") {
-				continue
-			}
-			items = append(items, app)
+	items := make([]sagemakertypes.AppDetails, 0, len(apps))
+	for _, app := range apps {
+		status := string(app.Status)
+		if strings.EqualFold(status, "Deleted") {
+			continue
 		}
-
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
+		if !includeDeleting && strings.EqualFold(status, "Deleting") {
+			continue
 		}
-		nextToken = page.NextToken
+		items = append(items, app)
 	}
 
 	sort.Slice(items, func(i, j int) bool {

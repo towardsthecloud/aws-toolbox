@@ -13,20 +13,15 @@ import (
 )
 
 func runEC2DeleteKeypairs(cmd *cobra.Command, allRegions bool) error {
-	runtime, err := newCommandRuntime(cmd)
+	runtime, cfg, baseClient, err := newServiceRuntime(cmd, ec2LoadAWSConfig, ec2NewClient)
 	if err != nil {
 		return err
 	}
 
-	cfg, err := ec2LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
 	if !allRegions && cfg.Region == "" {
 		return fmt.Errorf("resolve AWS region: set --region, AWS_REGION, or profile default region")
 	}
 
-	baseClient := ec2NewClient(cfg)
 	regions := []string{cfg.Region}
 	if allRegions {
 		regions, err = listRegions(cmd.Context(), baseClient)
@@ -57,9 +52,9 @@ func runEC2DeleteKeypairs(cmd *cobra.Command, allRegions bool) error {
 
 	rows := make([][]string, 0, len(targets))
 	for _, target := range targets {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{target.Name, target.Region, action})
 	}
@@ -78,7 +73,7 @@ func runEC2DeleteKeypairs(cmd *cobra.Command, allRegions bool) error {
 		}
 		if !ok {
 			for i := range rows {
-				rows[i][2] = "cancelled"
+				rows[i][2] = actionCancelled
 			}
 			return writeDataset(cmd, runtime, []string{"key_name", "region", "action"}, rows)
 		}
@@ -87,10 +82,10 @@ func runEC2DeleteKeypairs(cmd *cobra.Command, allRegions bool) error {
 			client := ec2NewRegionalClient(cfg, target.Region)
 			_, deleteErr := client.DeleteKeyPair(cmd.Context(), &ec2.DeleteKeyPairInput{KeyName: &target.Name})
 			if deleteErr != nil {
-				rows[i][2] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+				rows[i][2] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 				continue
 			}
-			rows[i][2] = "deleted"
+			rows[i][2] = actionDeleted
 		}
 	}
 
@@ -108,7 +103,7 @@ func runEC2DeleteSecurityGroups(
 		return fmt.Errorf("--type must be one of: all, ec2, rds, elb")
 	}
 	if !sshRules && !unusedOnly && tagFilter == "" {
-		return fmt.Errorf("set at least one filter: --ssh-rules, --unused, or --tag")
+		return fmt.Errorf("set at least one filter: --ssh-rules, --unused, or --filter-tag")
 	}
 
 	tagKey, tagValue, err := parseTagFilter(tagFilter)
@@ -116,16 +111,10 @@ func runEC2DeleteSecurityGroups(
 		return err
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, cfg, client, err := newServiceRuntime(cmd, ec2LoadAWSConfig, ec2NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := ec2LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ec2NewClient(cfg)
 
 	groups, err := listSecurityGroups(cmd.Context(), client)
 	if err != nil {
@@ -177,12 +166,9 @@ func runEC2DeleteSecurityGroups(
 
 	rows := make([][]string, 0, len(targets))
 	for _, target := range targets {
-		action := "would-delete"
-		if sshRules {
-			action = "would-revoke-ssh"
-		}
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{target.GroupID, target.GroupName, cfg.Region, action})
 	}
@@ -205,7 +191,7 @@ func runEC2DeleteSecurityGroups(
 		}
 		if !ok {
 			for i := range rows {
-				rows[i][3] = "cancelled"
+				rows[i][3] = actionCancelled
 			}
 			return writeDataset(cmd, runtime, []string{"group_id", "group_name", "region", "action"}, rows)
 		}
@@ -218,17 +204,17 @@ func runEC2DeleteSecurityGroups(
 					IpPermissions: target.SSHPermissions,
 				})
 				if opErr == nil {
-					rows[i][3] = "ssh-revoked"
+					rows[i][3] = actionDeleted
 				}
 			} else {
 				_, opErr = client.DeleteSecurityGroup(cmd.Context(), &ec2.DeleteSecurityGroupInput{GroupId: &target.GroupID})
 				if opErr == nil {
-					rows[i][3] = "deleted"
+					rows[i][3] = actionDeleted
 				}
 			}
 
 			if opErr != nil {
-				rows[i][3] = "failed: " + awstbxaws.FormatUserError(opErr)
+				rows[i][3] = failedActionMessage(awstbxaws.FormatUserError(opErr))
 			}
 		}
 	}

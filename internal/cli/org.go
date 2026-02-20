@@ -209,17 +209,17 @@ func newOrgRemoveSSOAccessCommand() *cobra.Command {
 }
 
 func newOrgSetAlternateContactCommand() *cobra.Command {
-	var contactsFile string
+	var inputFile string
 
 	cmd := &cobra.Command{
 		Use:   "set-alternate-contact",
 		Short: "Set alternate contacts for organization accounts",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runOrgSetAlternateContact(cmd, contactsFile)
+			return runOrgSetAlternateContact(cmd, inputFile)
 		},
 		SilenceUsage: true,
 	}
-	cmd.Flags().StringVar(&contactsFile, "contacts-file", "", "JSON file with security/billing/operations contact details")
+	cmd.Flags().StringVar(&inputFile, "input-file", "", "JSON file with security/billing/operations contact details")
 
 	return cmd
 }

@@ -32,17 +32,17 @@ func newAppStreamCommand() *cobra.Command {
 }
 
 func newAppStreamDeleteImageCommand() *cobra.Command {
-	var name string
+	var imageName string
 
 	cmd := &cobra.Command{
 		Use:   "delete-image",
 		Short: "Unshare and delete an AppStream image",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runAppStreamDeleteImage(cmd, name)
+			return runAppStreamDeleteImage(cmd, imageName)
 		},
 		SilenceUsage: true,
 	}
-	cmd.Flags().StringVar(&name, "name", "", "Private AppStream image name")
+	cmd.Flags().StringVar(&imageName, "image-name", "", "Private AppStream image name")
 
 	return cmd
 }
@@ -50,19 +50,13 @@ func newAppStreamDeleteImageCommand() *cobra.Command {
 func runAppStreamDeleteImage(cmd *cobra.Command, name string) error {
 	imageName := strings.TrimSpace(name)
 	if imageName == "" {
-		return fmt.Errorf("--name is required")
+		return fmt.Errorf("--image-name is required")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, appStreamLoadAWSConfig, appStreamNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := appStreamLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := appStreamNewClient(cfg)
 
 	permissions, err := listAppStreamImagePermissions(cmd.Context(), client, imageName)
 	if err != nil {
@@ -72,16 +66,16 @@ func runAppStreamDeleteImage(cmd *cobra.Command, name string) error {
 	accounts := uniqueSharedAccountIDs(permissions)
 	rows := make([][]string, 0, len(accounts)+1)
 	for _, accountID := range accounts {
-		action := "would-unshare"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{imageName, accountID, "image-permission", action})
 	}
 
-	imageAction := "would-delete"
+	imageAction := actionWouldDelete
 	if !runtime.Options.DryRun {
-		imageAction = "pending"
+		imageAction = actionPending
 	}
 	rows = append(rows, []string{imageName, "", "image", imageAction})
 	imageRowIndex := len(rows) - 1
@@ -99,7 +93,7 @@ func runAppStreamDeleteImage(cmd *cobra.Command, name string) error {
 	}
 	if !ok {
 		for i := range rows {
-			rows[i][3] = "cancelled"
+			rows[i][3] = actionCancelled
 		}
 		return writeDataset(cmd, runtime, []string{"image_name", "shared_account_id", "resource", "action"}, rows)
 	}
@@ -111,49 +105,42 @@ func runAppStreamDeleteImage(cmd *cobra.Command, name string) error {
 			SharedAccountId: ptr(accountID),
 		})
 		if deleteErr != nil {
-			rows[i][3] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+			rows[i][3] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 			permissionFailure = true
 			continue
 		}
-		rows[i][3] = "unshared"
+		rows[i][3] = actionDeleted
 	}
 
 	if permissionFailure {
-		rows[imageRowIndex][3] = "skipped: permission cleanup failed"
+		rows[imageRowIndex][3] = skippedActionMessage("permission cleanup failed")
 		return writeDataset(cmd, runtime, []string{"image_name", "shared_account_id", "resource", "action"}, rows)
 	}
 
 	_, err = client.DeleteImage(cmd.Context(), &appstream.DeleteImageInput{Name: ptr(imageName)})
 	if err != nil {
-		rows[imageRowIndex][3] = "failed: " + awstbxaws.FormatUserError(err)
+		rows[imageRowIndex][3] = failedActionMessage(awstbxaws.FormatUserError(err))
 		return writeDataset(cmd, runtime, []string{"image_name", "shared_account_id", "resource", "action"}, rows)
 	}
 
-	rows[imageRowIndex][3] = "deleted"
+	rows[imageRowIndex][3] = actionDeleted
 	return writeDataset(cmd, runtime, []string{"image_name", "shared_account_id", "resource", "action"}, rows)
 }
 
 func listAppStreamImagePermissions(ctx context.Context, client appStreamAPI, imageName string) ([]appstreamtypes.SharedImagePermissions, error) {
-	permissions := make([]appstreamtypes.SharedImagePermissions, 0)
-	var nextToken *string
-
-	for {
-		page, err := client.DescribeImagePermissions(ctx, &appstream.DescribeImagePermissionsInput{
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[appstreamtypes.SharedImagePermissions], error) {
+		page, err := client.DescribeImagePermissions(callCtx, &appstream.DescribeImagePermissionsInput{
 			Name:      ptr(imageName),
 			NextToken: nextToken,
 		})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[appstreamtypes.SharedImagePermissions]{}, err
 		}
-
-		permissions = append(permissions, page.SharedImagePermissionsList...)
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
-	}
-
-	return permissions, nil
+		return awstbxaws.PageResult[appstreamtypes.SharedImagePermissions]{
+			Items:     page.SharedImagePermissionsList,
+			NextToken: page.NextToken,
+		}, nil
+	})
 }
 
 func uniqueSharedAccountIDs(permissions []appstreamtypes.SharedImagePermissions) []string {

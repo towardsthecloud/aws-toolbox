@@ -53,16 +53,10 @@ func runR53CreateHealthChecks(cmd *cobra.Command, rawDomains []string) error {
 		return fmt.Errorf("--domains is required")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, r53LoadAWSConfig, r53NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := r53LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := r53NewClient(cfg)
 
 	rows := make([][]string, 0, len(domains))
 	for _, domain := range domains {
@@ -106,7 +100,7 @@ func runR53CreateHealthChecks(cmd *cobra.Command, rawDomains []string) error {
 			},
 		})
 		if createErr != nil {
-			rows[i][2] = "failed: " + awstbxaws.FormatUserError(createErr)
+			rows[i][2] = failedActionMessage(awstbxaws.FormatUserError(createErr))
 			continue
 		}
 
@@ -122,7 +116,7 @@ func runR53CreateHealthChecks(cmd *cobra.Command, rawDomains []string) error {
 			},
 		})
 		if tagErr != nil {
-			rows[i][2] = "created: tag failed: " + awstbxaws.FormatUserError(tagErr)
+			rows[i][2] = failedActionMessage("tagging health check: " + awstbxaws.FormatUserError(tagErr))
 			continue
 		}
 

@@ -24,16 +24,10 @@ func runIAMRotateKeys(cmd *cobra.Command, username, keyID string, disable, delet
 		return fmt.Errorf("--key is required with --disable or --delete")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, iamLoadAWSConfig, iamNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := iamLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := iamNewClient(cfg)
 
 	keys, err := listIAMAccessKeys(cmd.Context(), client, user)
 	if err != nil {
@@ -66,7 +60,7 @@ func runIAMRotateKeys(cmd *cobra.Command, username, keyID string, disable, delet
 	headers := []string{"username", "key_id", "active_keys", "inactive_keys", "action", "secret_access_key"}
 
 	if !disable && !deleteKey && len(keys) >= 2 {
-		row[4] = "failed: user already has 2 keys"
+		row[4] = failedActionMessage("user already has 2 keys")
 		return writeDataset(cmd, runtime, headers, [][]string{row})
 	}
 
@@ -93,7 +87,7 @@ func runIAMRotateKeys(cmd *cobra.Command, username, keyID string, disable, delet
 			Status:      iamtypes.StatusTypeInactive,
 		})
 		if updateErr != nil {
-			row[4] = "failed: " + awstbxaws.FormatUserError(updateErr)
+			row[4] = failedActionMessage(awstbxaws.FormatUserError(updateErr))
 			return writeDataset(cmd, runtime, headers, [][]string{row})
 		}
 		row[4] = "disabled"
@@ -106,7 +100,7 @@ func runIAMRotateKeys(cmd *cobra.Command, username, keyID string, disable, delet
 			AccessKeyId: ptr(key),
 		})
 		if deleteErr != nil {
-			row[4] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+			row[4] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 			return writeDataset(cmd, runtime, headers, [][]string{row})
 		}
 		row[4] = "deleted"
@@ -115,7 +109,7 @@ func runIAMRotateKeys(cmd *cobra.Command, username, keyID string, disable, delet
 
 	createOut, createErr := client.CreateAccessKey(cmd.Context(), &iam.CreateAccessKeyInput{UserName: ptr(user)})
 	if createErr != nil {
-		row[4] = "failed: " + awstbxaws.FormatUserError(createErr)
+		row[4] = failedActionMessage(awstbxaws.FormatUserError(createErr))
 		return writeDataset(cmd, runtime, headers, [][]string{row})
 	}
 

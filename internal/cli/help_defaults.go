@@ -10,7 +10,7 @@ import (
 var commandExamples = map[string]string{
 	"awstbx": strings.TrimSpace(`
 awstbx ec2 list-eips --output json
-awstbx cloudwatch delete-log-groups --keep 30d --dry-run
+awstbx cloudwatch delete-log-groups --retention-days 30 --dry-run
 awstbx ssm import-parameters --input-file params.json --no-confirm`),
 	"awstbx completion": strings.TrimSpace(`
 awstbx completion zsh > "${fpath[1]}/_awstbx"
@@ -19,29 +19,29 @@ awstbx completion bash > /etc/bash_completion.d/awstbx`),
 awstbx version
 awstbx --version`),
 	"awstbx appstream": strings.TrimSpace(`
-awstbx appstream delete-image --name image-name --dry-run
-awstbx appstream delete-image --name image-name --no-confirm`),
+awstbx appstream delete-image --image-name image-name --dry-run
+awstbx appstream delete-image --image-name image-name --no-confirm`),
 	"awstbx appstream delete-image": strings.TrimSpace(`
-awstbx appstream delete-image --name image-name --dry-run
-awstbx appstream delete-image --name image-name --no-confirm`),
+awstbx appstream delete-image --image-name image-name --dry-run
+awstbx appstream delete-image --image-name image-name --no-confirm`),
 	"awstbx cfn": strings.TrimSpace(`
-awstbx cfn delete-stackset --name my-stackset --dry-run
+awstbx cfn delete-stackset --stackset-name my-stackset --dry-run
 awstbx cfn find-stack-by-resource --resource i-0123456789abcdef0`),
 	"awstbx cfn delete-stackset": strings.TrimSpace(`
-awstbx cfn delete-stackset --name my-stackset --dry-run
-awstbx cfn delete-stackset --name my-stackset --no-confirm`),
+awstbx cfn delete-stackset --stackset-name my-stackset --dry-run
+awstbx cfn delete-stackset --stackset-name my-stackset --no-confirm`),
 	"awstbx cfn find-stack-by-resource": strings.TrimSpace(`
 awstbx cfn find-stack-by-resource --resource i-0123456789abcdef0
 awstbx cfn find-stack-by-resource --resource AWS::S3::Bucket --include-nested`),
 	"awstbx cloudwatch": strings.TrimSpace(`
 awstbx cloudwatch count-log-groups
-awstbx cloudwatch delete-log-groups --keep 30d --name-contains /aws/lambda --dry-run`),
+awstbx cloudwatch delete-log-groups --retention-days 30 --filter-name-contains /aws/lambda --dry-run`),
 	"awstbx cloudwatch count-log-groups": strings.TrimSpace(`
 awstbx cloudwatch count-log-groups
 awstbx cloudwatch count-log-groups --output json`),
 	"awstbx cloudwatch delete-log-groups": strings.TrimSpace(`
-awstbx cloudwatch delete-log-groups --keep 30d --dry-run
-awstbx cloudwatch delete-log-groups --name-contains /aws/ecs --no-confirm`),
+awstbx cloudwatch delete-log-groups --retention-days 30 --dry-run
+awstbx cloudwatch delete-log-groups --filter-name-contains /aws/ecs --no-confirm`),
 	"awstbx cloudwatch list-log-groups": strings.TrimSpace(`
 awstbx cloudwatch list-log-groups
 awstbx cloudwatch list-log-groups --output json`),
@@ -82,10 +82,10 @@ awstbx ecs delete-task-definitions --no-confirm`),
 awstbx ecs publish-image --ecr-url 123456789012.dkr.ecr.us-east-1.amazonaws.com/app --tag v1.0.0
 awstbx ecs publish-image --ecr-url 123456789012.dkr.ecr.us-east-1.amazonaws.com/app --dockerfile ./Dockerfile --context .`),
 	"awstbx efs": strings.TrimSpace(`
-awstbx efs delete-filesystems --tag Environment=dev --dry-run
+awstbx efs delete-filesystems --filter-tag Environment=dev --dry-run
 awstbx efs delete-filesystems --no-confirm`),
 	"awstbx efs delete-filesystems": strings.TrimSpace(`
-awstbx efs delete-filesystems --tag Environment=dev --dry-run
+awstbx efs delete-filesystems --filter-tag Environment=dev --dry-run
 awstbx efs delete-filesystems --no-confirm`),
 	"awstbx iam": strings.TrimSpace(`
 awstbx iam create-sso-users --emails alice@example.com,bob@example.com --group Engineers
@@ -101,10 +101,10 @@ awstbx iam rotate-keys --username jdoe
 awstbx iam rotate-keys --username jdoe --key AKIAEXAMPLE --disable`),
 	"awstbx kms": strings.TrimSpace(`
 awstbx kms delete-keys --unused --pending-days 7 --dry-run
-awstbx kms delete-keys --tag Environment=dev --pending-days 30 --no-confirm`),
+awstbx kms delete-keys --filter-tag Environment=dev --pending-days 30 --no-confirm`),
 	"awstbx kms delete-keys": strings.TrimSpace(`
 awstbx kms delete-keys --unused --pending-days 7 --dry-run
-awstbx kms delete-keys --tag Environment=dev --pending-days 30 --no-confirm`),
+awstbx kms delete-keys --filter-tag Environment=dev --pending-days 30 --no-confirm`),
 	"awstbx org": strings.TrimSpace(`
 awstbx org list-accounts --output json
 awstbx org generate-diagram --max-accounts-per-ou 8`),
@@ -130,8 +130,8 @@ awstbx org list-sso-assignments --account-id 123456789012`),
 awstbx org remove-sso-access --principal-name Engineering --principal-type GROUP --permission-set-name AdministratorAccess --ou-name Sandbox --dry-run
 awstbx org remove-sso-access --principal-name Engineering --principal-type GROUP --permission-set-name AdministratorAccess --ou-name Sandbox --no-confirm`),
 	"awstbx org set-alternate-contact": strings.TrimSpace(`
-awstbx org set-alternate-contact --contacts-file contacts.json --dry-run
-awstbx org set-alternate-contact --contacts-file contacts.json --no-confirm`),
+awstbx org set-alternate-contact --input-file contacts.json --dry-run
+awstbx org set-alternate-contact --input-file contacts.json --no-confirm`),
 	"awstbx r53": strings.TrimSpace(`
 awstbx r53 create-health-checks --domains example.com,www.example.com --dry-run
 awstbx r53 create-health-checks --domains api.example.com --no-confirm`),
@@ -139,20 +139,20 @@ awstbx r53 create-health-checks --domains api.example.com --no-confirm`),
 awstbx r53 create-health-checks --domains example.com,www.example.com --dry-run
 awstbx r53 create-health-checks --domains api.example.com --no-confirm`),
 	"awstbx s3": strings.TrimSpace(`
-awstbx s3 search-objects --bucket my-bucket --keys invoice.csv,report.json
+awstbx s3 search-objects --bucket-name my-bucket --keys invoice.csv,report.json
 awstbx s3 delete-buckets --empty --dry-run`),
 	"awstbx s3 delete-buckets": strings.TrimSpace(`
 awstbx s3 delete-buckets --empty --dry-run
-awstbx s3 delete-buckets --name my-bucket --no-confirm`),
+awstbx s3 delete-buckets --filter-name-contains my-bucket --no-confirm`),
 	"awstbx s3 download-bucket": strings.TrimSpace(`
-awstbx s3 download-bucket --bucket my-bucket --prefix exports/ --output-dir ./downloads
-awstbx s3 download-bucket --bucket my-bucket --prefix logs/`),
+awstbx s3 download-bucket --bucket-name my-bucket --prefix exports/ --output-dir ./downloads
+awstbx s3 download-bucket --bucket-name my-bucket --prefix logs/`),
 	"awstbx s3 list-old-files": strings.TrimSpace(`
-awstbx s3 list-old-files --bucket my-bucket --older-than-days 90
-awstbx s3 list-old-files --bucket my-bucket --prefix archive/ --output json`),
+awstbx s3 list-old-files --bucket-name my-bucket --older-than-days 90
+awstbx s3 list-old-files --bucket-name my-bucket --prefix archive/ --output json`),
 	"awstbx s3 search-objects": strings.TrimSpace(`
-awstbx s3 search-objects --bucket my-bucket --keys foo.txt,bar.txt
-awstbx s3 search-objects --bucket my-bucket --prefix logs/ --output json`),
+awstbx s3 search-objects --bucket-name my-bucket --keys foo.txt,bar.txt
+awstbx s3 search-objects --bucket-name my-bucket --prefix logs/ --output json`),
 	"awstbx sagemaker": strings.TrimSpace(`
 awstbx sagemaker cleanup-spaces --domain-id d-abc123 --dry-run
 awstbx sagemaker delete-user-profile --domain-id d-abc123 --user-profile data-scientist`),

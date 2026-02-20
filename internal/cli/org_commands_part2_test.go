@@ -196,7 +196,7 @@ func TestOrgSetAlternateContactNoConfirmExecutes(t *testing.T) {
 		func(awssdk.Config) accountAPI { return accountClient },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "org", "set-alternate-contact", "--contacts-file", contactsFile)
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "org", "set-alternate-contact", "--input-file", contactsFile)
 	if err != nil {
 		t.Fatalf("execute set-alternate-contact --no-confirm: %v", err)
 	}

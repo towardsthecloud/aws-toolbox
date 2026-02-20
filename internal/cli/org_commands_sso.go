@@ -85,7 +85,7 @@ func runOrgSSOAccessChange(cmd *cobra.Command, principalName, principalTypeRaw, 
 	for _, id := range accountIDs {
 		action := actionWould
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{id, string(principalType), principalName, permissionSetName, action})
 	}
@@ -100,7 +100,7 @@ func runOrgSSOAccessChange(cmd *cobra.Command, principalName, principalTypeRaw, 
 		}
 		if !ok {
 			for i := range rows {
-				rows[i][4] = "cancelled"
+				rows[i][4] = actionCancelled
 			}
 			return writeDataset(cmd, runtime, []string{"account_id", "principal_type", "principal_name", "permission_set", "action"}, rows)
 		}
@@ -136,7 +136,7 @@ func runOrgSSOAccessChange(cmd *cobra.Command, principalName, principalTypeRaw, 
 				}
 			}
 			if opErr != nil {
-				rows[i][4] = "failed: " + awstbxaws.FormatUserError(opErr)
+				rows[i][4] = failedActionMessage(awstbxaws.FormatUserError(opErr))
 				continue
 			}
 			rows[i][4] = actionDone
@@ -238,20 +238,16 @@ func resolveOrgPrincipalID(ctx context.Context, identityClient identityStoreAPI,
 }
 
 func listOrgPermissionSets(ctx context.Context, ssoClient ssoAdminAPI, instanceARN string) ([]string, error) {
-	items := make([]string, 0)
-	var nextToken *string
-	for {
-		out, err := ssoClient.ListPermissionSets(ctx, &ssoadmin.ListPermissionSetsInput{InstanceArn: ptr(instanceARN), NextToken: nextToken})
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[string], error) {
+		out, err := ssoClient.ListPermissionSets(callCtx, &ssoadmin.ListPermissionSetsInput{InstanceArn: ptr(instanceARN), NextToken: nextToken})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[string]{}, err
 		}
-		items = append(items, out.PermissionSets...)
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return items, nil
+		return awstbxaws.PageResult[string]{
+			Items:     out.PermissionSets,
+			NextToken: out.NextToken,
+		}, nil
+	})
 }
 
 func resolveOrgPermissionSetARN(ctx context.Context, ssoClient ssoAdminAPI, instanceARN, permissionSetName string) (string, error) {
@@ -269,20 +265,21 @@ func resolveOrgPermissionSetARN(ctx context.Context, ssoClient ssoAdminAPI, inst
 }
 
 func listOrgAssignments(ctx context.Context, ssoClient ssoAdminAPI, instanceARN, accountID, permissionSetARN string) ([]ssoadmintypes.AccountAssignment, error) {
-	items := make([]ssoadmintypes.AccountAssignment, 0)
-	var nextToken *string
-	for {
-		out, err := ssoClient.ListAccountAssignments(ctx, &ssoadmin.ListAccountAssignmentsInput{InstanceArn: ptr(instanceARN), AccountId: ptr(accountID), PermissionSetArn: ptr(permissionSetARN), NextToken: nextToken})
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[ssoadmintypes.AccountAssignment], error) {
+		out, err := ssoClient.ListAccountAssignments(callCtx, &ssoadmin.ListAccountAssignmentsInput{
+			InstanceArn:      ptr(instanceARN),
+			AccountId:        ptr(accountID),
+			PermissionSetArn: ptr(permissionSetARN),
+			NextToken:        nextToken,
+		})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[ssoadmintypes.AccountAssignment]{}, err
 		}
-		items = append(items, out.AccountAssignments...)
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return items, nil
+		return awstbxaws.PageResult[ssoadmintypes.AccountAssignment]{
+			Items:     out.AccountAssignments,
+			NextToken: out.NextToken,
+		}, nil
+	})
 }
 
 func waitForOrgAssignmentCreation(ctx context.Context, ssoClient ssoAdminAPI, instanceARN string, out *ssoadmin.CreateAccountAssignmentOutput) error {

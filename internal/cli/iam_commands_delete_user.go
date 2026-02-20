@@ -27,16 +27,10 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 		return fmt.Errorf("--username is required")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, iamLoadAWSConfig, iamNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := iamLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := iamNewClient(cfg)
 	ctx := cmd.Context()
 
 	operations := make([]iamDeleteOperation, 0)
@@ -47,12 +41,12 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 
 		action := op.dryRunAction
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{user, op.step, op.resource, action})
 	}
 	addListFailure := func(step string, listErr error) {
-		rows = append(rows, []string{user, step, "-", "failed: " + awstbxaws.FormatUserError(listErr)})
+		rows = append(rows, []string{user, step, "-", failedActionMessage(awstbxaws.FormatUserError(listErr))})
 	}
 
 	accessKeyIDs, listErr := listIAMAccessKeyIDs(ctx, client, user)
@@ -64,8 +58,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 			addOperation(iamDeleteOperation{
 				step:          "access-key",
 				resource:      currentKeyID,
-				dryRunAction:  "would-delete",
-				successAction: "deleted",
+				dryRunAction:  actionWouldDelete,
+				successAction: actionDeleted,
 				execute: func(callCtx context.Context) error {
 					_, err := client.DeleteAccessKey(callCtx, &iam.DeleteAccessKeyInput{
 						UserName:    ptr(user),
@@ -86,8 +80,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 			addOperation(iamDeleteOperation{
 				step:          "mfa-device",
 				resource:      currentSerial,
-				dryRunAction:  "would-deactivate",
-				successAction: "deactivated",
+				dryRunAction:  actionWouldDelete,
+				successAction: actionDeleted,
 				execute: func(callCtx context.Context) error {
 					_, err := client.DeactivateMFADevice(callCtx, &iam.DeactivateMFADeviceInput{
 						UserName:     ptr(user),
@@ -108,8 +102,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 			addOperation(iamDeleteOperation{
 				step:          "attached-policy",
 				resource:      currentPolicyARN,
-				dryRunAction:  "would-detach",
-				successAction: "detached",
+				dryRunAction:  actionWouldDelete,
+				successAction: actionDeleted,
 				execute: func(callCtx context.Context) error {
 					_, err := client.DetachUserPolicy(callCtx, &iam.DetachUserPolicyInput{
 						UserName:  ptr(user),
@@ -130,8 +124,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 			addOperation(iamDeleteOperation{
 				step:          "inline-policy",
 				resource:      currentPolicyName,
-				dryRunAction:  "would-delete",
-				successAction: "deleted",
+				dryRunAction:  actionWouldDelete,
+				successAction: actionDeleted,
 				execute: func(callCtx context.Context) error {
 					_, err := client.DeleteUserPolicy(callCtx, &iam.DeleteUserPolicyInput{
 						UserName:   ptr(user),
@@ -152,8 +146,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 			addOperation(iamDeleteOperation{
 				step:          "group-membership",
 				resource:      currentGroupName,
-				dryRunAction:  "would-remove",
-				successAction: "removed",
+				dryRunAction:  actionWouldDelete,
+				successAction: actionDeleted,
 				execute: func(callCtx context.Context) error {
 					_, err := client.RemoveUserFromGroup(callCtx, &iam.RemoveUserFromGroupInput{
 						UserName:  ptr(user),
@@ -168,8 +162,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 	addOperation(iamDeleteOperation{
 		step:          "permissions-boundary",
 		resource:      "-",
-		dryRunAction:  "would-delete",
-		successAction: "deleted",
+		dryRunAction:  actionWouldDelete,
+		successAction: actionDeleted,
 		execute: func(callCtx context.Context) error {
 			_, err := client.DeleteUserPermissionsBoundary(callCtx, &iam.DeleteUserPermissionsBoundaryInput{UserName: ptr(user)})
 			return err
@@ -179,8 +173,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 	addOperation(iamDeleteOperation{
 		step:          "login-profile",
 		resource:      "-",
-		dryRunAction:  "would-delete",
-		successAction: "deleted",
+		dryRunAction:  actionWouldDelete,
+		successAction: actionDeleted,
 		execute: func(callCtx context.Context) error {
 			_, err := client.DeleteLoginProfile(callCtx, &iam.DeleteLoginProfileInput{UserName: ptr(user)})
 			return err
@@ -196,8 +190,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 			addOperation(iamDeleteOperation{
 				step:          "signing-certificate",
 				resource:      currentCertificateID,
-				dryRunAction:  "would-delete",
-				successAction: "deleted",
+				dryRunAction:  actionWouldDelete,
+				successAction: actionDeleted,
 				execute: func(callCtx context.Context) error {
 					_, err := client.DeleteSigningCertificate(callCtx, &iam.DeleteSigningCertificateInput{
 						UserName:      ptr(user),
@@ -218,8 +212,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 			addOperation(iamDeleteOperation{
 				step:          "ssh-public-key",
 				resource:      currentKeyID,
-				dryRunAction:  "would-delete",
-				successAction: "deleted",
+				dryRunAction:  actionWouldDelete,
+				successAction: actionDeleted,
 				execute: func(callCtx context.Context) error {
 					_, err := client.DeleteSSHPublicKey(callCtx, &iam.DeleteSSHPublicKeyInput{
 						UserName:       ptr(user),
@@ -234,8 +228,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 	addOperation(iamDeleteOperation{
 		step:          "user",
 		resource:      user,
-		dryRunAction:  "would-delete",
-		successAction: "deleted",
+		dryRunAction:  actionWouldDelete,
+		successAction: actionDeleted,
 		execute: func(callCtx context.Context) error {
 			_, err := client.DeleteUser(callCtx, &iam.DeleteUserInput{UserName: ptr(user)})
 			return err
@@ -255,8 +249,8 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 	}
 	if !ok {
 		for i := range rows {
-			if rows[i][3] == "pending" {
-				rows[i][3] = "cancelled"
+			if rows[i][3] == actionPending {
+				rows[i][3] = actionCancelled
 			}
 		}
 		return writeDataset(cmd, runtime, []string{"username", "step", "resource", "action"}, rows)
@@ -269,10 +263,10 @@ func runIAMDeleteUser(cmd *cobra.Command, username string) error {
 			continue
 		}
 		if isIAMNoSuchEntity(execErr) {
-			rows[op.rowIndex][3] = "not-found"
+			rows[op.rowIndex][3] = skippedActionMessage("not-found")
 			continue
 		}
-		rows[op.rowIndex][3] = "failed: " + awstbxaws.FormatUserError(execErr)
+		rows[op.rowIndex][3] = failedActionMessage(awstbxaws.FormatUserError(execErr))
 	}
 
 	return writeDataset(cmd, runtime, []string{"username", "step", "resource", "action"}, rows)

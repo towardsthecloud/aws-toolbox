@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	identitystoretypes "github.com/aws/aws-sdk-go-v2/service/identitystore/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
+	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/spf13/cobra"
 	awstbxaws "github.com/towardsthecloud/aws-toolbox/internal/aws"
 )
@@ -20,14 +21,9 @@ func runIAMCreateSSOUsers(cmd *cobra.Command, emailFlags []string, inputFile, gr
 		return err
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, cfg, err := newServiceConfigRuntime(cmd, iamLoadAWSConfig)
 	if err != nil {
 		return err
-	}
-
-	cfg, err := iamLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
 	}
 
 	ctx := cmd.Context()
@@ -95,7 +91,7 @@ func runIAMCreateSSOUsers(cmd *cobra.Command, emailFlags []string, inputFile, gr
 			}},
 		})
 		if createErr != nil {
-			rows[i][3] = "failed: " + awstbxaws.FormatUserError(createErr)
+			rows[i][3] = failedActionMessage(awstbxaws.FormatUserError(createErr))
 			continue
 		}
 
@@ -114,7 +110,7 @@ func runIAMCreateSSOUsers(cmd *cobra.Command, emailFlags []string, inputFile, gr
 			MemberId:        &identitystoretypes.MemberIdMemberUserId{Value: pointerToString(userOut.UserId)},
 		})
 		if membershipErr != nil {
-			rows[i][3] = "created-user-failed-group: " + awstbxaws.FormatUserError(membershipErr)
+			rows[i][3] = "created-user-failed-group:" + awstbxaws.FormatUserError(membershipErr)
 			continue
 		}
 
@@ -209,33 +205,33 @@ func titleCase(value string) string {
 }
 
 func resolveIdentityStoreID(ctx context.Context, client iamSSOAdminAPI) (string, error) {
-	var nextToken *string
-	for {
-		page, err := client.ListInstances(ctx, &ssoadmin.ListInstancesInput{NextToken: nextToken})
-		if err != nil {
-			return "", err
+	instances, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[ssoadmintypes.InstanceMetadata], error) {
+		page, listErr := client.ListInstances(callCtx, &ssoadmin.ListInstancesInput{NextToken: nextToken})
+		if listErr != nil {
+			return awstbxaws.PageResult[ssoadmintypes.InstanceMetadata]{}, listErr
 		}
+		return awstbxaws.PageResult[ssoadmintypes.InstanceMetadata]{
+			Items:     page.Instances,
+			NextToken: page.NextToken,
+		}, nil
+	})
+	if err != nil {
+		return "", err
+	}
 
-		for _, instance := range page.Instances {
-			id := pointerToString(instance.IdentityStoreId)
-			if id != "" {
-				return id, nil
-			}
+	for _, instance := range instances {
+		id := pointerToString(instance.IdentityStoreId)
+		if id != "" {
+			return id, nil
 		}
-
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
 	}
 
 	return "", fmt.Errorf("no IAM Identity Center instances found")
 }
 
 func resolveIdentityStoreGroupID(ctx context.Context, client iamIdentityStoreAPI, identityStoreID, groupName string) (string, error) {
-	var nextToken *string
-	for {
-		page, err := client.ListGroups(ctx, &identitystore.ListGroupsInput{
+	groups, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[identitystoretypes.Group], error) {
+		page, listErr := client.ListGroups(callCtx, &identitystore.ListGroupsInput{
 			IdentityStoreId: ptr(identityStoreID),
 			Filters: []identitystoretypes.Filter{{
 				AttributePath:  ptr("DisplayName"),
@@ -243,20 +239,22 @@ func resolveIdentityStoreGroupID(ctx context.Context, client iamIdentityStoreAPI
 			}},
 			NextToken: nextToken,
 		})
-		if err != nil {
-			return "", err
+		if listErr != nil {
+			return awstbxaws.PageResult[identitystoretypes.Group]{}, listErr
 		}
+		return awstbxaws.PageResult[identitystoretypes.Group]{
+			Items:     page.Groups,
+			NextToken: page.NextToken,
+		}, nil
+	})
+	if err != nil {
+		return "", err
+	}
 
-		for _, group := range page.Groups {
-			if strings.EqualFold(pointerToString(group.DisplayName), groupName) {
-				return pointerToString(group.GroupId), nil
-			}
+	for _, group := range groups {
+		if strings.EqualFold(pointerToString(group.DisplayName), groupName) {
+			return pointerToString(group.GroupId), nil
 		}
-
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
 	}
 
 	return "", nil

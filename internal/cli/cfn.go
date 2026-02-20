@@ -44,17 +44,17 @@ func newCFNCommand() *cobra.Command {
 }
 
 func newCFNDeleteStackSetCommand() *cobra.Command {
-	var name string
+	var stackSetName string
 
 	cmd := &cobra.Command{
 		Use:   "delete-stackset",
 		Short: "Delete a stack set after removing all stack instances",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runCFNDeleteStackSet(cmd, name)
+			return runCFNDeleteStackSet(cmd, stackSetName)
 		},
 		SilenceUsage: true,
 	}
-	cmd.Flags().StringVar(&name, "name", "", "CloudFormation stack set name")
+	cmd.Flags().StringVar(&stackSetName, "stackset-name", "", "CloudFormation stack set name")
 
 	return cmd
 }
@@ -82,19 +82,13 @@ func newCFNFindStackByResourceCommand() *cobra.Command {
 func runCFNDeleteStackSet(cmd *cobra.Command, name string) error {
 	stackSetName := strings.TrimSpace(name)
 	if stackSetName == "" {
-		return fmt.Errorf("--name is required")
+		return fmt.Errorf("--stackset-name is required")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, cfnLoadAWSConfig, cfnNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := cfnLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := cfnNewClient(cfg)
 
 	targets, err := listStackInstanceTargets(cmd.Context(), client, stackSetName)
 	if err != nil {
@@ -103,16 +97,16 @@ func runCFNDeleteStackSet(cmd *cobra.Command, name string) error {
 
 	rows := make([][]string, 0, len(targets)+1)
 	for _, target := range targets {
-		action := "would-delete-stack-instance"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{stackSetName, target.Account, target.Region, "stack-instance", action})
 	}
 
-	stackSetAction := "would-delete-stackset"
+	stackSetAction := actionWouldDelete
 	if !runtime.Options.DryRun {
-		stackSetAction = "pending"
+		stackSetAction = actionPending
 	}
 	rows = append(rows, []string{stackSetName, "", "", "stackset", stackSetAction})
 	stackSetRow := len(rows) - 1
@@ -130,7 +124,7 @@ func runCFNDeleteStackSet(cmd *cobra.Command, name string) error {
 	}
 	if !ok {
 		for i := range rows {
-			rows[i][4] = "cancelled"
+			rows[i][4] = actionCancelled
 		}
 		return writeDataset(cmd, runtime, []string{"stackset_name", "account", "region", "resource", "action"}, rows)
 	}
@@ -139,7 +133,7 @@ func runCFNDeleteStackSet(cmd *cobra.Command, name string) error {
 	for i, target := range targets {
 		opID, deleteErr := deleteStackSetInstanceTarget(cmd.Context(), client, stackSetName, target)
 		if deleteErr != nil {
-			rows[i][4] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+			rows[i][4] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 			instanceFailure = true
 			continue
 		}
@@ -147,27 +141,27 @@ func runCFNDeleteStackSet(cmd *cobra.Command, name string) error {
 		if opID != "" {
 			waitErr := waitForStackSetOperation(cmd.Context(), client, stackSetName, opID)
 			if waitErr != nil {
-				rows[i][4] = "failed: " + awstbxaws.FormatUserError(waitErr)
+				rows[i][4] = failedActionMessage(awstbxaws.FormatUserError(waitErr))
 				instanceFailure = true
 				continue
 			}
 		}
 
-		rows[i][4] = "deleted-stack-instance"
+		rows[i][4] = actionDeleted
 	}
 
 	if instanceFailure {
-		rows[stackSetRow][4] = "skipped: stack instance deletion failed"
+		rows[stackSetRow][4] = skippedActionMessage("stack instance deletion failed")
 		return writeDataset(cmd, runtime, []string{"stackset_name", "account", "region", "resource", "action"}, rows)
 	}
 
 	_, err = client.DeleteStackSet(cmd.Context(), &cloudformation.DeleteStackSetInput{StackSetName: ptr(stackSetName)})
 	if err != nil {
-		rows[stackSetRow][4] = "failed: " + awstbxaws.FormatUserError(err)
+		rows[stackSetRow][4] = failedActionMessage(awstbxaws.FormatUserError(err))
 		return writeDataset(cmd, runtime, []string{"stackset_name", "account", "region", "resource", "action"}, rows)
 	}
 
-	rows[stackSetRow][4] = "deleted-stackset"
+	rows[stackSetRow][4] = actionDeleted
 	return writeDataset(cmd, runtime, []string{"stackset_name", "account", "region", "resource", "action"}, rows)
 }
 
@@ -177,16 +171,10 @@ func runCFNFindStackByResource(cmd *cobra.Command, resource string, exact, inclu
 		return fmt.Errorf("--resource is required")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, cfnLoadAWSConfig, cfnNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := cfnLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := cfnNewClient(cfg)
 
 	stacks, err := listStacksForSearch(cmd.Context(), client, includeNested)
 	if err != nil {
@@ -227,36 +215,36 @@ func runCFNFindStackByResource(cmd *cobra.Command, resource string, exact, inclu
 func listStackInstanceTargets(ctx context.Context, client cfnAPI, stackSetName string) ([]stackInstanceTarget, error) {
 	targets := make([]stackInstanceTarget, 0)
 	seen := make(map[string]struct{})
-	var nextToken *string
-
-	for {
-		page, err := client.ListStackInstances(ctx, &cloudformation.ListStackInstancesInput{
+	items, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[cloudformationtypes.StackInstanceSummary], error) {
+		page, listErr := client.ListStackInstances(callCtx, &cloudformation.ListStackInstancesInput{
 			StackSetName: ptr(stackSetName),
 			NextToken:    nextToken,
 		})
-		if err != nil {
-			return nil, err
+		if listErr != nil {
+			return awstbxaws.PageResult[cloudformationtypes.StackInstanceSummary]{}, listErr
+		}
+		return awstbxaws.PageResult[cloudformationtypes.StackInstanceSummary]{
+			Items:     page.Summaries,
+			NextToken: page.NextToken,
+		}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, item := range items {
+		account := strings.TrimSpace(pointerToString(item.Account))
+		region := strings.TrimSpace(pointerToString(item.Region))
+		if account == "" || region == "" {
+			continue
 		}
 
-		for _, item := range page.Summaries {
-			account := strings.TrimSpace(pointerToString(item.Account))
-			region := strings.TrimSpace(pointerToString(item.Region))
-			if account == "" || region == "" {
-				continue
-			}
-
-			key := account + "|" + region
-			if _, exists := seen[key]; exists {
-				continue
-			}
-			seen[key] = struct{}{}
-			targets = append(targets, stackInstanceTarget{Account: account, Region: region})
+		key := account + "|" + region
+		if _, exists := seen[key]; exists {
+			continue
 		}
-
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
+		seen[key] = struct{}{}
+		targets = append(targets, stackInstanceTarget{Account: account, Region: region})
 	}
 
 	sort.Slice(targets, func(i, j int) bool {
@@ -319,29 +307,29 @@ func waitForStackSetOperation(ctx context.Context, client cfnAPI, stackSetName, 
 }
 
 func listStacksForSearch(ctx context.Context, client cfnAPI, includeNested bool) ([]cloudformationtypes.Stack, error) {
-	stacks := make([]cloudformationtypes.Stack, 0)
-	var nextToken *string
-
-	for {
-		page, err := client.DescribeStacks(ctx, &cloudformation.DescribeStacksInput{NextToken: nextToken})
-		if err != nil {
-			return nil, err
+	allStacks, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[cloudformationtypes.Stack], error) {
+		page, listErr := client.DescribeStacks(callCtx, &cloudformation.DescribeStacksInput{NextToken: nextToken})
+		if listErr != nil {
+			return awstbxaws.PageResult[cloudformationtypes.Stack]{}, listErr
 		}
+		return awstbxaws.PageResult[cloudformationtypes.Stack]{
+			Items:     page.Stacks,
+			NextToken: page.NextToken,
+		}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-		for _, stack := range page.Stacks {
-			if stack.StackStatus == cloudformationtypes.StackStatusDeleteComplete {
-				continue
-			}
-			if !includeNested && stack.ParentId != nil {
-				continue
-			}
-			stacks = append(stacks, stack)
+	stacks := make([]cloudformationtypes.Stack, 0, len(allStacks))
+	for _, stack := range allStacks {
+		if stack.StackStatus == cloudformationtypes.StackStatusDeleteComplete {
+			continue
 		}
-
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
+		if !includeNested && stack.ParentId != nil {
+			continue
 		}
-		nextToken = page.NextToken
+		stacks = append(stacks, stack)
 	}
 
 	sort.Slice(stacks, func(i, j int) bool {
@@ -352,23 +340,21 @@ func listStacksForSearch(ctx context.Context, client cfnAPI, includeNested bool)
 }
 
 func listStackResources(ctx context.Context, client cfnAPI, stackName string) ([]cloudformationtypes.StackResourceSummary, error) {
-	resources := make([]cloudformationtypes.StackResourceSummary, 0)
-	var nextToken *string
-
-	for {
-		page, err := client.ListStackResources(ctx, &cloudformation.ListStackResourcesInput{
+	resources, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[cloudformationtypes.StackResourceSummary], error) {
+		page, listErr := client.ListStackResources(callCtx, &cloudformation.ListStackResourcesInput{
 			StackName: ptr(stackName),
 			NextToken: nextToken,
 		})
-		if err != nil {
-			return nil, err
+		if listErr != nil {
+			return awstbxaws.PageResult[cloudformationtypes.StackResourceSummary]{}, listErr
 		}
-
-		resources = append(resources, page.StackResourceSummaries...)
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
+		return awstbxaws.PageResult[cloudformationtypes.StackResourceSummary]{
+			Items:     page.StackResourceSummaries,
+			NextToken: page.NextToken,
+		}, nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return resources, nil

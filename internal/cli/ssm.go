@@ -102,59 +102,36 @@ func runSSMDeleteParameters(cmd *cobra.Command, inputFile string) error {
 		return err
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, ssmLoadAWSConfig, ssmNewClient)
 	if err != nil {
 		return err
 	}
 
-	cfg, err := ssmLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ssmNewClient(cfg)
-
 	sort.Strings(names)
 	rows := make([][]string, 0, len(names))
 	for _, name := range names {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{name, action})
 	}
 
-	if len(rows) == 0 {
-		return writeDataset(cmd, runtime, []string{"parameter_name", "action"}, rows)
-	}
-
-	if !runtime.Options.DryRun {
-		ok, confirmErr := runtime.Prompter.Confirm(
-			fmt.Sprintf("Delete %d SSM parameter(s)", len(rows)),
-			runtime.Options.NoConfirm,
-		)
-		if confirmErr != nil {
-			return confirmErr
-		}
-		if !ok {
-			for i := range rows {
-				rows[i][1] = "cancelled"
-			}
-			return writeDataset(cmd, runtime, []string{"parameter_name", "action"}, rows)
-		}
-
-		for i := range rows {
+	return runDestructiveActionPlan(cmd, runtime, destructiveActionPlan{
+		Headers:       []string{"parameter_name", "action"},
+		Rows:          rows,
+		ActionColumn:  1,
+		ConfirmPrompt: fmt.Sprintf("Delete %d SSM parameter(s)", len(rows)),
+		Execute: func(rowIndex int) string {
 			_, deleteErr := client.DeleteParameter(cmd.Context(), &ssm.DeleteParameterInput{
-				Name: ptr(rows[i][0]),
+				Name: ptr(rows[rowIndex][0]),
 			})
 			if deleteErr != nil {
-				rows[i][1] = "failed: " + awstbxaws.FormatUserError(deleteErr)
-				continue
+				return failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 			}
-			rows[i][1] = "deleted"
-		}
-	}
-
-	return writeDataset(cmd, runtime, []string{"parameter_name", "action"}, rows)
+			return actionDeleted
+		},
+	})
 }
 
 func runSSMImportParameters(cmd *cobra.Command, inputFile string) error {
@@ -167,16 +144,10 @@ func runSSMImportParameters(cmd *cobra.Command, inputFile string) error {
 		return err
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, ssmLoadAWSConfig, ssmNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := ssmLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ssmNewClient(cfg)
 
 	sort.Slice(parameters, func(i, j int) bool {
 		return parameters[i].Name < parameters[j].Name
@@ -198,7 +169,7 @@ func runSSMImportParameters(cmd *cobra.Command, inputFile string) error {
 			Description: ptr(parameter.Description),
 		})
 		if putErr != nil {
-			action = "failed: " + awstbxaws.FormatUserError(putErr)
+			action = failedActionMessage(awstbxaws.FormatUserError(putErr))
 		} else {
 			action = "imported"
 		}

@@ -14,22 +14,16 @@ import (
 	awstbxaws "github.com/towardsthecloud/aws-toolbox/internal/aws"
 )
 
-func runS3DeleteBuckets(cmd *cobra.Command, emptyOnly bool, nameFilter string) error {
-	nameFilter = strings.TrimSpace(nameFilter)
-	if !emptyOnly && nameFilter == "" {
-		return fmt.Errorf("set --empty or --name")
+func runS3DeleteBuckets(cmd *cobra.Command, emptyOnly bool, filterNameContains string) error {
+	filterNameContains = strings.TrimSpace(filterNameContains)
+	if !emptyOnly && filterNameContains == "" {
+		return fmt.Errorf("set --empty or --filter-name-contains")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, s3LoadAWSConfig, s3NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := s3LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := s3NewClient(cfg)
 
 	buckets, err := listS3Buckets(cmd.Context(), client)
 	if err != nil {
@@ -42,7 +36,7 @@ func runS3DeleteBuckets(cmd *cobra.Command, emptyOnly bool, nameFilter string) e
 		if name == "" {
 			continue
 		}
-		if nameFilter != "" && !strings.Contains(name, nameFilter) {
+		if filterNameContains != "" && !strings.Contains(name, filterNameContains) {
 			continue
 		}
 		if emptyOnly {
@@ -62,68 +56,44 @@ func runS3DeleteBuckets(cmd *cobra.Command, emptyOnly bool, nameFilter string) e
 
 	rows := make([][]string, 0, len(targets))
 	for _, name := range targets {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{name, action})
 	}
 
-	if len(rows) == 0 {
-		return writeDataset(cmd, runtime, []string{"bucket", "action"}, rows)
-	}
-
-	if !runtime.Options.DryRun {
-		ok, confirmErr := runtime.Prompter.Confirm(
-			fmt.Sprintf("Delete %d S3 bucket(s)", len(rows)),
-			runtime.Options.NoConfirm,
-		)
-		if confirmErr != nil {
-			return confirmErr
-		}
-		if !ok {
-			for i := range rows {
-				rows[i][1] = "cancelled"
-			}
-			return writeDataset(cmd, runtime, []string{"bucket", "action"}, rows)
-		}
-
-		for i := range rows {
-			bucket := rows[i][0]
+	return runDestructiveActionPlan(cmd, runtime, destructiveActionPlan{
+		Headers:       []string{"bucket", "action"},
+		Rows:          rows,
+		ActionColumn:  1,
+		ConfirmPrompt: fmt.Sprintf("Delete %d S3 bucket(s)", len(rows)),
+		Execute: func(rowIndex int) string {
+			bucket := rows[rowIndex][0]
 			if clearErr := deleteAllObjectsFromS3Bucket(cmd.Context(), client, bucket); clearErr != nil {
-				rows[i][1] = "failed: " + clearErr.Error()
-				continue
+				return failedAction(clearErr)
 			}
 			_, deleteErr := client.DeleteBucket(cmd.Context(), &s3.DeleteBucketInput{Bucket: ptr(bucket)})
 			if deleteErr != nil {
-				rows[i][1] = "failed: " + awstbxaws.FormatUserError(deleteErr)
-				continue
+				return failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 			}
-			rows[i][1] = "deleted"
-		}
-	}
-
-	return writeDataset(cmd, runtime, []string{"bucket", "action"}, rows)
+			return actionDeleted
+		},
+	})
 }
 
 func runS3DownloadBucket(cmd *cobra.Command, bucket, prefix, outputDir string) error {
 	if strings.TrimSpace(bucket) == "" {
-		return fmt.Errorf("--bucket is required")
+		return fmt.Errorf("--bucket-name is required")
 	}
 	if strings.TrimSpace(prefix) == "" {
 		return fmt.Errorf("--prefix is required")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, s3LoadAWSConfig, s3NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := s3LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := s3NewClient(cfg)
 
 	objects, err := listS3Objects(cmd.Context(), client, bucket, prefix)
 	if err != nil {
@@ -148,7 +118,7 @@ func runS3DownloadBucket(cmd *cobra.Command, bucket, prefix, outputDir string) e
 		}
 
 		if err := downloadS3Object(cmd.Context(), client, bucket, key, targetPath); err != nil {
-			action = "failed: " + err.Error()
+			action = failedAction(err)
 		} else {
 			action = "downloaded"
 		}
@@ -160,22 +130,16 @@ func runS3DownloadBucket(cmd *cobra.Command, bucket, prefix, outputDir string) e
 
 func runS3ListOldFiles(cmd *cobra.Command, bucket, prefix string, olderThanDays int) error {
 	if strings.TrimSpace(bucket) == "" {
-		return fmt.Errorf("--bucket is required")
+		return fmt.Errorf("--bucket-name is required")
 	}
 	if olderThanDays < 0 {
 		return fmt.Errorf("--older-than-days must be >= 0")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, s3LoadAWSConfig, s3NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := s3LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := s3NewClient(cfg)
 
 	objects, err := listS3Objects(cmd.Context(), client, bucket, prefix)
 	if err != nil {
@@ -208,7 +172,7 @@ func runS3ListOldFiles(cmd *cobra.Command, bucket, prefix string, olderThanDays 
 
 func runS3SearchObjects(cmd *cobra.Command, bucket, prefix string, keys []string) error {
 	if strings.TrimSpace(bucket) == "" {
-		return fmt.Errorf("--bucket is required")
+		return fmt.Errorf("--bucket-name is required")
 	}
 
 	queries := normalizeS3KeyQueries(keys)
@@ -216,16 +180,10 @@ func runS3SearchObjects(cmd *cobra.Command, bucket, prefix string, keys []string
 		return fmt.Errorf("set --prefix and/or --keys")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, s3LoadAWSConfig, s3NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := s3LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := s3NewClient(cfg)
 
 	objects, err := listS3Objects(cmd.Context(), client, bucket, prefix)
 	if err != nil {
@@ -374,6 +332,8 @@ func deleteAllObjectsFromS3Bucket(ctx context.Context, client s3API, bucket stri
 		continuationToken = page.NextContinuationToken
 	}
 
+	// Keep this loop local instead of CollectAllPages: ListObjectVersions needs two continuation markers
+	// (`KeyMarker` and `VersionIdMarker`), while the shared paginator supports one token.
 	// Delete versioned objects + delete markers.
 	var keyMarker *string
 	var versionIDMarker *string

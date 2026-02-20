@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
@@ -47,19 +45,19 @@ func newCloudWatchCountLogGroupsCommand() *cobra.Command {
 }
 
 func newCloudWatchDeleteLogGroupsCommand() *cobra.Command {
-	var keep string
+	var retentionDays int
 	var nameContains string
 
 	cmd := &cobra.Command{
 		Use:   "delete-log-groups",
 		Short: "Delete log groups by age and/or name pattern",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runCloudWatchDeleteLogGroups(cmd, keep, nameContains)
+			return runCloudWatchDeleteLogGroups(cmd, retentionDays, nameContains)
 		},
 		SilenceUsage: true,
 	}
-	cmd.Flags().StringVar(&keep, "keep", "", "Keep log groups newer than this period (e.g. '30d', '2 weeks')")
-	cmd.Flags().StringVar(&nameContains, "name-contains", "", "Only target log groups containing this text")
+	cmd.Flags().IntVar(&retentionDays, "retention-days", 0, "Delete log groups older than this many days (0 disables age filter)")
+	cmd.Flags().StringVar(&nameContains, "filter-name-contains", "", "Only target log groups containing this text")
 
 	return cmd
 }
@@ -108,53 +106,6 @@ func listLogGroups(ctx context.Context, client cloudWatchLogsAPI) ([]cloudwatchl
 	}
 
 	return groups, nil
-}
-
-func parseKeepPeriod(raw string) (time.Duration, error) {
-	value := strings.TrimSpace(strings.ToLower(raw))
-	if value == "" {
-		return 0, nil
-	}
-
-	if days, err := strconv.Atoi(value); err == nil {
-		if days < 0 {
-			return 0, fmt.Errorf("--keep must be >= 0")
-		}
-		return time.Duration(days) * 24 * time.Hour, nil
-	}
-
-	if strings.HasSuffix(value, "d") || strings.HasSuffix(value, "w") || strings.HasSuffix(value, "m") {
-		num, err := strconv.Atoi(strings.TrimSpace(value[:len(value)-1]))
-		if err != nil || num < 0 {
-			return 0, fmt.Errorf("invalid --keep value %q", raw)
-		}
-		switch value[len(value)-1] {
-		case 'd':
-			return time.Duration(num) * 24 * time.Hour, nil
-		case 'w':
-			return time.Duration(num) * 7 * 24 * time.Hour, nil
-		case 'm':
-			return time.Duration(num) * 30 * 24 * time.Hour, nil
-		}
-	}
-
-	parts := strings.Fields(value)
-	if len(parts) == 2 {
-		num, err := strconv.Atoi(parts[0])
-		if err != nil || num < 0 {
-			return 0, fmt.Errorf("invalid --keep value %q", raw)
-		}
-		switch parts[1] {
-		case "day", "days":
-			return time.Duration(num) * 24 * time.Hour, nil
-		case "week", "weeks":
-			return time.Duration(num) * 7 * 24 * time.Hour, nil
-		case "month", "months":
-			return time.Duration(num) * 30 * 24 * time.Hour, nil
-		}
-	}
-
-	return 0, fmt.Errorf("invalid --keep value %q (examples: 30, 30d, 2 weeks)", raw)
 }
 
 func logGroupCreatedAt(group cloudwatchlogstypes.LogGroup) time.Time {

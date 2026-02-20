@@ -46,7 +46,7 @@ func newEFSDeleteFilesystemsCommand() *cobra.Command {
 		},
 		SilenceUsage: true,
 	}
-	cmd.Flags().StringVar(&tagFilter, "tag", "", "Optional tag filter in KEY=VALUE form")
+	cmd.Flags().StringVar(&tagFilter, "filter-tag", "", "Optional tag filter in KEY=VALUE form")
 
 	return cmd
 }
@@ -62,16 +62,10 @@ func runEFSDeleteFilesystems(cmd *cobra.Command, tagFilter string) error {
 		return err
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, efsLoadAWSConfig, efsNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := efsLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := efsNewClient(cfg)
 
 	fileSystems, err := listEFSFileSystems(cmd.Context(), client)
 	if err != nil {
@@ -109,9 +103,9 @@ func runEFSDeleteFilesystems(cmd *cobra.Command, tagFilter string) error {
 
 	rows := make([][]string, 0, len(targets))
 	for _, target := range targets {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 
 		rows = append(rows, []string{target.fileSystemID, fmt.Sprintf("%d", len(target.mountTargetIDs)), action})
@@ -130,7 +124,7 @@ func runEFSDeleteFilesystems(cmd *cobra.Command, tagFilter string) error {
 	}
 	if !ok {
 		for i := range rows {
-			rows[i][2] = "cancelled"
+			rows[i][2] = actionCancelled
 		}
 		return writeDataset(cmd, runtime, []string{"file_system_id", "mount_targets", "action"}, rows)
 	}
@@ -140,7 +134,7 @@ func runEFSDeleteFilesystems(cmd *cobra.Command, tagFilter string) error {
 		for _, mountTargetID := range target.mountTargetIDs {
 			_, deleteErr := client.DeleteMountTarget(cmd.Context(), &efs.DeleteMountTargetInput{MountTargetId: ptr(mountTargetID)})
 			if deleteErr != nil {
-				rows[i][2] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+				rows[i][2] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 				deleteFailed = true
 				break
 			}
@@ -151,63 +145,56 @@ func runEFSDeleteFilesystems(cmd *cobra.Command, tagFilter string) error {
 		if len(target.mountTargetIDs) > 0 {
 			waitErr := waitForEFSMountTargetsDeleted(cmd.Context(), client, target.fileSystemID)
 			if waitErr != nil {
-				rows[i][2] = "failed: " + awstbxaws.FormatUserError(waitErr)
+				rows[i][2] = failedActionMessage(awstbxaws.FormatUserError(waitErr))
 				continue
 			}
 		}
 
 		_, deleteErr := client.DeleteFileSystem(cmd.Context(), &efs.DeleteFileSystemInput{FileSystemId: ptr(target.fileSystemID)})
 		if deleteErr != nil {
-			rows[i][2] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+			rows[i][2] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 			continue
 		}
-		rows[i][2] = "deleted"
+		rows[i][2] = actionDeleted
 	}
 
 	return writeDataset(cmd, runtime, []string{"file_system_id", "mount_targets", "action"}, rows)
 }
 
 func listEFSFileSystems(ctx context.Context, client efsAPI) ([]efstypes.FileSystemDescription, error) {
-	items := make([]efstypes.FileSystemDescription, 0)
-	var marker *string
-
-	for {
-		page, err := client.DescribeFileSystems(ctx, &efs.DescribeFileSystemsInput{Marker: marker})
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, marker *string) (awstbxaws.PageResult[efstypes.FileSystemDescription], error) {
+		page, err := client.DescribeFileSystems(callCtx, &efs.DescribeFileSystemsInput{Marker: marker})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[efstypes.FileSystemDescription]{}, err
 		}
-
-		items = append(items, page.FileSystems...)
-		if page.NextMarker == nil || *page.NextMarker == "" {
-			break
-		}
-		marker = page.NextMarker
-	}
-
-	return items, nil
+		return awstbxaws.PageResult[efstypes.FileSystemDescription]{
+			Items:     page.FileSystems,
+			NextToken: page.NextMarker,
+		}, nil
+	})
 }
 
 func listEFSMountTargetIDs(ctx context.Context, client efsAPI, fileSystemID string) ([]string, error) {
-	ids := make([]string, 0)
-	var marker *string
-
-	for {
-		page, err := client.DescribeMountTargets(ctx, &efs.DescribeMountTargetsInput{FileSystemId: ptr(fileSystemID), Marker: marker})
-		if err != nil {
-			return nil, err
+	mountTargets, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, marker *string) (awstbxaws.PageResult[efstypes.MountTargetDescription], error) {
+		page, listErr := client.DescribeMountTargets(callCtx, &efs.DescribeMountTargetsInput{FileSystemId: ptr(fileSystemID), Marker: marker})
+		if listErr != nil {
+			return awstbxaws.PageResult[efstypes.MountTargetDescription]{}, listErr
 		}
+		return awstbxaws.PageResult[efstypes.MountTargetDescription]{
+			Items:     page.MountTargets,
+			NextToken: page.NextMarker,
+		}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-		for _, mountTarget := range page.MountTargets {
-			mountTargetID := pointerToString(mountTarget.MountTargetId)
-			if mountTargetID != "" {
-				ids = append(ids, mountTargetID)
-			}
+	ids := make([]string, 0, len(mountTargets))
+	for _, mountTarget := range mountTargets {
+		mountTargetID := pointerToString(mountTarget.MountTargetId)
+		if mountTargetID != "" {
+			ids = append(ids, mountTargetID)
 		}
-
-		if page.NextMarker == nil || *page.NextMarker == "" {
-			break
-		}
-		marker = page.NextMarker
 	}
 
 	sort.Strings(ids)
@@ -239,24 +226,24 @@ func waitForEFSMountTargetsDeleted(ctx context.Context, client efsAPI, fileSyste
 }
 
 func efsFileSystemMatchesTag(ctx context.Context, client efsAPI, fileSystemID, tagKey, tagValue string) (bool, error) {
-	var nextToken *string
-
-	for {
-		page, err := client.ListTagsForResource(ctx, &efs.ListTagsForResourceInput{ResourceId: ptr(fileSystemID), NextToken: nextToken})
-		if err != nil {
-			return false, err
+	tags, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[efstypes.Tag], error) {
+		page, listErr := client.ListTagsForResource(callCtx, &efs.ListTagsForResourceInput{ResourceId: ptr(fileSystemID), NextToken: nextToken})
+		if listErr != nil {
+			return awstbxaws.PageResult[efstypes.Tag]{}, listErr
 		}
+		return awstbxaws.PageResult[efstypes.Tag]{
+			Items:     page.Tags,
+			NextToken: page.NextToken,
+		}, nil
+	})
+	if err != nil {
+		return false, err
+	}
 
-		for _, tag := range page.Tags {
-			if pointerToString(tag.Key) == tagKey && pointerToString(tag.Value) == tagValue {
-				return true, nil
-			}
+	for _, tag := range tags {
+		if pointerToString(tag.Key) == tagKey && pointerToString(tag.Value) == tagValue {
+			return true, nil
 		}
-
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
 	}
 
 	return false, nil

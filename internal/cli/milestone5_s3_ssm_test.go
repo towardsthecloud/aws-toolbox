@@ -146,7 +146,7 @@ func TestMilestone5S3SearchObjectsSupportsMultipleKeys(t *testing.T) {
 		func(awssdk.Config) s3API { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "s3", "search-objects", "--bucket", "my-bucket", "--keys", "foo,bar")
+	output, err := executeCommand(t, "--output", "json", "s3", "search-objects", "--bucket-name", "my-bucket", "--keys", "foo,bar")
 	if err != nil {
 		t.Fatalf("execute s3 search-objects: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestMilestone5S3SearchObjectsRequiresBucket(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got nil and output=%s", output)
 	}
-	if !strings.Contains(err.Error(), "--bucket is required") {
+	if !strings.Contains(err.Error(), "--bucket-name is required") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

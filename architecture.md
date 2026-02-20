@@ -278,13 +278,13 @@ awstbx
 | `cfn delete-stackset`           | `cfn_delete_stackset.py`                                                                                                       | Direct port                                                                      |
 | `cfn find-stack-by-resource`    | `cfn_find_stack_by_resource.py`                                                                                                | Direct port                                                                      |
 | `cloudwatch count-log-groups`   | `cw_count_log_groups.py`                                                                                                       | Direct port                                                                      |
-| `cloudwatch delete-log-groups`  | `cw_delete_log_groups.py`, `cw_delete_log_groups_by_name.py`                                                                   | Merged: `--keep` for age-based retention, `--name-contains` for pattern match    |
+| `cloudwatch delete-log-groups`  | `cw_delete_log_groups.py`, `cw_delete_log_groups_by_name.py`                                                                   | Merged: `--retention-days` for age-based retention, `--filter-name-contains` for pattern match |
 | `cloudwatch list-log-groups`    | `cw_fetch_log_groups_with_creation_date.py`                                                                                    | Renamed for clarity                                                              |
 | `cloudwatch set-retention`      | `cw_set_retention_policy.py`                                                                                                   | Direct port                                                                      |
 | `ec2 delete-amis`               | `ec2_delete_old_amis.py`, `ec2_delete_unused_amis.py`                                                                          | Merged: `--retention-days` for age-based, `--unused` for usage-based             |
 | `ec2 delete-eips`               | `ec2_delete_unused_eips.py`                                                                                                    | Direct port                                                                      |
 | `ec2 delete-keypairs`           | `ec2_delete_unused_keypairs_all_regions.py`, `ec2_delete_unused_keypairs_single_region.py`                                     | Merged: `--all-regions` flag toggles scope                                       |
-| `ec2 delete-security-groups`    | `ec2_delete_ssh_access_security_groups.py`, `ec2_delete_tagged_security_groups.py`, `general/delete_unused_security_groups.py` | Merged: `--ssh-rules`, `--tag KEY=VALUE`, `--unused`, `--type {all,ec2,rds,elb}` |
+| `ec2 delete-security-groups`    | `ec2_delete_ssh_access_security_groups.py`, `ec2_delete_tagged_security_groups.py`, `general/delete_unused_security_groups.py` | Merged: `--ssh-rules`, `--filter-tag KEY=VALUE`, `--unused`, `--type {all,ec2,rds,elb}` |
 | `ec2 delete-snapshots`          | `ec2_delete_orphaned_snapshots.py`                                                                                             | Direct port                                                                      |
 | `ec2 delete-volumes`            | `ec2_delete_unattached_volumes.py`, `ec2_find_unattached_volumes.py`                                                           | Merged: `--dry-run` replaces separate find script                                |
 | `ec2 list-eips`                 | `ec2_list_available_eips.sh`                                                                                                   | Rewritten from Bash to Go                                                        |
@@ -294,7 +294,7 @@ awstbx
 | `iam create-sso-users`          | `iam_identity_center_create_users.py`                                                                                          | Direct port; `--input-file` for user list                                        |
 | `iam delete-user`               | `iam_delete_user.py`                                                                                                           | Direct port; adds `--username` required flag                                     |
 | `iam rotate-keys`               | `iam_rotate_access_keys.py`                                                                                                    | Direct port                                                                      |
-| `kms delete-keys`               | `kms_delete_keys_by_tag.py`, `kms_delete_unused_keys.py`                                                                       | Merged: `--tag KEY=VALUE` for tag-based, `--unused` for usage-based              |
+| `kms delete-keys`               | `kms_delete_keys_by_tag.py`, `kms_delete_unused_keys.py`                                                                       | Merged: `--filter-tag KEY=VALUE` for tag-based, `--unused` for usage-based       |
 | `org assign-sso-access`         | `org_assign_sso_access_by_ou.py`                                                                                               | Direct port                                                                      |
 | `org generate-diagram`          | `org_generate_mermaid_diagram.py`                                                                                              | Direct port; outputs Mermaid to stdout                                           |
 | `org get-account`               | `org_get_account_details.py`                                                                                                   | Direct port                                                                      |
@@ -302,12 +302,12 @@ awstbx
 | `org list-accounts`             | `org_list_accounts_by_ou.py`                                                                                                   | Direct port                                                                      |
 | `org list-sso-assignments`      | `org_list_sso_assignments.py`                                                                                                  | Direct port; adds `--output` format support                                      |
 | `org remove-sso-access`         | `org_remove_sso_access_by_ou.py`                                                                                               | Direct port                                                                      |
-| `org set-alternate-contact`     | `general/set-alternate-contact.py`                                                                                             | Moved to `org`; `--contacts-file` replaces hardcoded values                      |
+| `org set-alternate-contact`     | `general/set-alternate-contact.py`                                                                                             | Moved to `org`; `--input-file` replaces hardcoded values                         |
 | `r53 create-health-checks`      | `r53_create_health_checks.py`                                                                                                  | Direct port; `--domains` required flag replaces positional args                  |
-| `s3 delete-buckets`             | `s3_delete_empty_buckets.py`, `s3_search_bucket_and_delete.py`                                                                 | Merged: `--empty` for empty-only, `--name` for specific bucket                   |
-| `s3 download-bucket`            | `s3_search_bucket_and_download.py`                                                                                             | `--bucket` and `--prefix` required flags                                         |
+| `s3 delete-buckets`             | `s3_delete_empty_buckets.py`, `s3_search_bucket_and_delete.py`                                                                 | Merged: `--empty` for empty-only, `--filter-name-contains` for bucket selection  |
+| `s3 download-bucket`            | `s3_search_bucket_and_download.py`                                                                                             | `--bucket-name` and `--prefix` required flags                                    |
 | `s3 list-old-files`             | `s3_list_old_files.py`                                                                                                         | Direct port                                                                      |
-| `s3 search-objects`             | `s3_search_file.py`, `s3_search_key.py`, `s3_search_multiple_keys.py`, `s3_search_subdirectory.py`                             | Merged: `--bucket`, `--prefix`, `--keys` flags unify all search patterns         |
+| `s3 search-objects`             | `s3_search_file.py`, `s3_search_key.py`, `s3_search_multiple_keys.py`, `s3_search_subdirectory.py`                             | Merged: `--bucket-name`, `--prefix`, `--keys` flags unify all search patterns    |
 | `sagemaker cleanup-spaces`      | `sm_cleanup_spaces.py`                                                                                                         | Direct port; replaces `inquirer` with built-in selection                         |
 | `sagemaker delete-user-profile` | `sm_delete_user_profile.py`                                                                                                    | Direct port                                                                      |
 | `ssm delete-parameters`         | `ssm_delete_parameters.sh`                                                                                                     | Rewritten; `--input-file` replaces JSON convention                               |
@@ -563,12 +563,12 @@ graph TB
 - All 8 `org` commands: `assign-sso-access`, `generate-diagram`, `get-account`, `import-sso-users`, `list-accounts`, `list-sso-assignments`, `remove-sso-access`, `set-alternate-contact`
 - All 3 `iam` commands: `create-sso-users`, `delete-user`, `rotate-keys`
 - `org generate-diagram` outputs valid Mermaid syntax to stdout
-- `org set-alternate-contact --contacts-file` replaces hardcoded values
+- `org set-alternate-contact --input-file` replaces hardcoded values
 - `iam delete-user` cascades (keys, MFA, policies, groups) before deletion
 
 **Acceptance Criteria:**
 - `org generate-diagram | pbcopy` produces pasteable Mermaid diagram
-- `org set-alternate-contact --contacts-file contacts.json --dry-run` shows planned changes
+- `org set-alternate-contact --input-file contacts.json --dry-run` shows planned changes
 - `iam delete-user --username jdoe` removes all dependencies before deleting
 - All commands support the three output formats
 - Unit test coverage > 80%
@@ -579,7 +579,7 @@ graph TB
 
 **Deliverables:**
 - All 4 `s3` commands: `delete-buckets`, `download-bucket`, `list-old-files`, `search-objects`
-- `kms delete-keys` with `--tag` and `--unused` modes
+- `kms delete-keys` with `--filter-tag` and `--unused` modes
 - `ecs delete-task-definitions` and `ecs publish-image`
 - `efs delete-filesystems`
 - `sagemaker cleanup-spaces` and `sagemaker delete-user-profile`
@@ -587,10 +587,10 @@ graph TB
 - `appstream delete-image`
 - `cfn delete-stackset` and `cfn find-stack-by-resource`
 - `r53 create-health-checks` with `--domains` required flag
-- `s3 search-objects` unifies 4 search scripts with `--bucket`, `--prefix`, `--keys` flags
+- `s3 search-objects` unifies 4 search scripts with `--bucket-name`, `--prefix`, `--keys` flags
 
 **Acceptance Criteria:**
-- `s3 search-objects --bucket my-bucket --keys foo,bar` searches for multiple keys
+- `s3 search-objects --bucket-name my-bucket --keys foo,bar` searches for multiple keys
 - `ssm import-parameters --input-file params.json` reads from file instead of requiring co-located JSON
 - `ecs publish-image` handles Docker login, build, tag, and push
 - `sagemaker cleanup-spaces` provides non-interactive mode via `--no-confirm`

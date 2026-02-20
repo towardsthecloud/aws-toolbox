@@ -446,7 +446,7 @@ func TestIAMRotateKeysDryRunDoesNotMutate(t *testing.T) {
 	}
 }
 
-func TestIAMDeleteUserNoSuchEntityMarkedNotFound(t *testing.T) {
+func TestIAMDeleteUserNoSuchEntityMarkedSkipped(t *testing.T) {
 	client := &mockIAMClient{
 		listAccessKeysFn: func(_ context.Context, _ *iam.ListAccessKeysInput, _ ...func(*iam.Options)) (*iam.ListAccessKeysOutput, error) {
 			return &iam.ListAccessKeysOutput{}, nil
@@ -492,7 +492,7 @@ func TestIAMDeleteUserNoSuchEntityMarkedNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute delete-user --no-confirm: %v", err)
 	}
-	if !strings.Contains(output, "\"action\": \"not-found\"") {
-		t.Fatalf("expected not-found action in output: %s", output)
+	if !strings.Contains(output, "\"action\": \"skipped:not-found\"") {
+		t.Fatalf("expected skipped:not-found action in output: %s", output)
 	}
 }

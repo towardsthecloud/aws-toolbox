@@ -103,7 +103,7 @@ func TestCloudWatchListLogGroups(t *testing.T) {
 	}
 }
 
-func TestCloudWatchDeleteLogGroupsDryRunWithKeepAndNameFilter(t *testing.T) {
+func TestCloudWatchDeleteLogGroupsDryRunWithRetentionAndNameFilter(t *testing.T) {
 	old := time.Now().UTC().AddDate(0, 0, -40).UnixMilli()
 	recent := time.Now().UTC().AddDate(0, 0, -5).UnixMilli()
 	client := &mockCloudWatchLogsClient{
@@ -122,7 +122,7 @@ func TestCloudWatchDeleteLogGroupsDryRunWithKeepAndNameFilter(t *testing.T) {
 		func(awssdk.Config) cloudWatchLogsAPI { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--dry-run", "cloudwatch", "delete-log-groups", "--keep", "30d", "--name-contains", "lambda")
+	output, err := executeCommand(t, "--output", "json", "--dry-run", "cloudwatch", "delete-log-groups", "--retention-days", "30", "--filter-name-contains", "lambda")
 	if err != nil {
 		t.Fatalf("execute delete-log-groups: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestCloudWatchDeleteLogGroupsExecutesWhenNoConfirm(t *testing.T) {
 		func(awssdk.Config) cloudWatchLogsAPI { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudwatch", "delete-log-groups", "--keep", "30", "--name-contains", "lambda")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudwatch", "delete-log-groups", "--retention-days", "30", "--filter-name-contains", "lambda")
 	if err != nil {
 		t.Fatalf("execute delete-log-groups: %v", err)
 	}
@@ -271,19 +271,6 @@ func TestCloudWatchCountLogGroupsAllOutputFormats(t *testing.T) {
 }
 
 func TestCloudWatchValidationAndHelpers(t *testing.T) {
-	if _, err := parseKeepPeriod("bogus"); err == nil {
-		t.Fatal("expected parseKeepPeriod error")
-	}
-	if d, err := parseKeepPeriod("2 weeks"); err != nil || d <= 0 {
-		t.Fatalf("unexpected parseKeepPeriod result: %v %v", d, err)
-	}
-	if d, err := parseKeepPeriod("30d"); err != nil || d <= 0 {
-		t.Fatalf("unexpected parseKeepPeriod short form: %v %v", d, err)
-	}
-	if d, err := parseKeepPeriod("7"); err != nil || d <= 0 {
-		t.Fatalf("unexpected parseKeepPeriod integer form: %v %v", d, err)
-	}
-
 	client := &mockCloudWatchLogsClient{
 		describeLogGroupsFn: func(_ context.Context, _ *cloudwatchlogs.DescribeLogGroupsInput, _ ...func(*cloudwatchlogs.Options)) (*cloudwatchlogs.DescribeLogGroupsOutput, error) {
 			return &cloudwatchlogs.DescribeLogGroupsOutput{}, nil
@@ -297,6 +284,9 @@ func TestCloudWatchValidationAndHelpers(t *testing.T) {
 
 	if _, err := executeCommand(t, "cloudwatch", "set-retention"); err == nil {
 		t.Fatal("expected missing-flag error")
+	}
+	if _, err := executeCommand(t, "cloudwatch", "delete-log-groups", "--retention-days", "-1"); err == nil {
+		t.Fatal("expected retention-days validation error")
 	}
 	if _, err := executeCommand(t, "cloudwatch", "set-retention", "--retention-days", "30", "--print-retention-counts"); err == nil {
 		t.Fatal("expected incompatible flags error")
@@ -317,7 +307,7 @@ func TestCloudWatchDeleteLogGroupsCancelledPrompt(t *testing.T) {
 		func(awssdk.Config) cloudWatchLogsAPI { return client },
 	)
 
-	output, err := executeCommandWithInput(t, "n\n", "--output", "json", "cloudwatch", "delete-log-groups", "--keep", "30")
+	output, err := executeCommandWithInput(t, "n\n", "--output", "json", "cloudwatch", "delete-log-groups", "--retention-days", "30")
 	if err != nil {
 		t.Fatalf("execute delete-log-groups with prompt: %v", err)
 	}

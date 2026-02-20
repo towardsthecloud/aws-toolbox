@@ -14,16 +14,10 @@ import (
 )
 
 func runCloudWatchCountLogGroups(cmd *cobra.Command, _ []string) error {
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, cloudWatchLoadAWSConfig, cloudWatchNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := cloudWatchLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := cloudWatchNewClient(cfg)
 
 	groups, err := listLogGroups(cmd.Context(), client)
 	if err != nil {
@@ -35,16 +29,10 @@ func runCloudWatchCountLogGroups(cmd *cobra.Command, _ []string) error {
 }
 
 func runCloudWatchListLogGroups(cmd *cobra.Command, _ []string) error {
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, cloudWatchLoadAWSConfig, cloudWatchNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := cloudWatchLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := cloudWatchNewClient(cfg)
 
 	groups, err := listLogGroups(cmd.Context(), client)
 	if err != nil {
@@ -82,22 +70,15 @@ func runCloudWatchListLogGroups(cmd *cobra.Command, _ []string) error {
 	return writeDataset(cmd, runtime, []string{"log_group", "created_at", "age_days", "retention_days"}, rows)
 }
 
-func runCloudWatchDeleteLogGroups(cmd *cobra.Command, keepRaw, nameContains string) error {
-	keepDuration, err := parseKeepPeriod(keepRaw)
+func runCloudWatchDeleteLogGroups(cmd *cobra.Command, retentionDays int, nameContains string) error {
+	if retentionDays < 0 {
+		return fmt.Errorf("--retention-days must be >= 0")
+	}
+
+	runtime, _, client, err := newServiceRuntime(cmd, cloudWatchLoadAWSConfig, cloudWatchNewClient)
 	if err != nil {
 		return err
 	}
-
-	runtime, err := newCommandRuntime(cmd)
-	if err != nil {
-		return err
-	}
-
-	cfg, err := cloudWatchLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := cloudWatchNewClient(cfg)
 
 	groups, err := listLogGroups(cmd.Context(), client)
 	if err != nil {
@@ -114,9 +95,14 @@ func runCloudWatchDeleteLogGroups(cmd *cobra.Command, keepRaw, nameContains stri
 		if nameContains != "" && !strings.Contains(name, nameContains) {
 			continue
 		}
-		if keepDuration > 0 {
+		if retentionDays > 0 {
 			createdAt := logGroupCreatedAt(group)
-			if !createdAt.IsZero() && now.Sub(createdAt) <= keepDuration {
+			if !createdAt.IsZero() {
+				ageDays := int(now.Sub(createdAt).Hours() / 24)
+				if ageDays <= retentionDays {
+					continue
+				}
+			} else {
 				continue
 			}
 		}
@@ -127,43 +113,26 @@ func runCloudWatchDeleteLogGroups(cmd *cobra.Command, keepRaw, nameContains stri
 
 	rows := make([][]string, 0, len(targets))
 	for _, target := range targets {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{pointerToString(target.LogGroupName), retentionToString(target.RetentionInDays), action})
 	}
 
-	if len(targets) == 0 {
-		return writeDataset(cmd, runtime, []string{"log_group", "retention_days", "action"}, rows)
-	}
-
-	if !runtime.Options.DryRun {
-		ok, confirmErr := runtime.Prompter.Confirm(
-			fmt.Sprintf("Delete %d CloudWatch log group(s)", len(targets)),
-			runtime.Options.NoConfirm,
-		)
-		if confirmErr != nil {
-			return confirmErr
-		}
-		if !ok {
-			for i := range rows {
-				rows[i][2] = "cancelled"
-			}
-			return writeDataset(cmd, runtime, []string{"log_group", "retention_days", "action"}, rows)
-		}
-
-		for i, target := range targets {
-			_, deleteErr := client.DeleteLogGroup(cmd.Context(), &cloudwatchlogs.DeleteLogGroupInput{LogGroupName: target.LogGroupName})
+	return runDestructiveActionPlan(cmd, runtime, destructiveActionPlan{
+		Headers:       []string{"log_group", "retention_days", "action"},
+		Rows:          rows,
+		ActionColumn:  2,
+		ConfirmPrompt: fmt.Sprintf("Delete %d CloudWatch log group(s)", len(targets)),
+		Execute: func(rowIndex int) string {
+			_, deleteErr := client.DeleteLogGroup(cmd.Context(), &cloudwatchlogs.DeleteLogGroupInput{LogGroupName: targets[rowIndex].LogGroupName})
 			if deleteErr != nil {
-				rows[i][2] = "failed: " + awstbxaws.FormatUserError(deleteErr)
-				continue
+				return failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 			}
-			rows[i][2] = "deleted"
-		}
-	}
-
-	return writeDataset(cmd, runtime, []string{"log_group", "retention_days", "action"}, rows)
+			return actionDeleted
+		},
+	})
 }
 
 func runCloudWatchSetRetention(cmd *cobra.Command, retentionDays int, printCounts bool) error {
@@ -177,16 +146,10 @@ func runCloudWatchSetRetention(cmd *cobra.Command, retentionDays int, printCount
 		return fmt.Errorf("set either --retention-days or --print-retention-counts")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, cloudWatchLoadAWSConfig, cloudWatchNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := cloudWatchLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := cloudWatchNewClient(cfg)
 
 	groups, err := listLogGroups(cmd.Context(), client)
 	if err != nil {

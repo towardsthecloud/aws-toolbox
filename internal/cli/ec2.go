@@ -117,7 +117,7 @@ func newEC2DeleteSecurityGroupsCommand() *cobra.Command {
 		SilenceUsage: true,
 	}
 	cmd.Flags().BoolVar(&sshRules, "ssh-rules", false, "Revoke inbound TCP/22 rules instead of deleting groups")
-	cmd.Flags().StringVar(&tagFilter, "tag", "", "Tag filter in KEY=VALUE form")
+	cmd.Flags().StringVar(&tagFilter, "filter-tag", "", "Tag filter in KEY=VALUE form")
 	cmd.Flags().BoolVar(&unusedOnly, "unused", false, "Only target security groups not attached to ENIs")
 	cmd.Flags().StringVar(&securityGroupType, "type", "all", "Filter by naming convention: all|ec2|rds|elb")
 
@@ -232,7 +232,7 @@ func parseTagFilter(raw string) (string, string, error) {
 
 	parts := strings.SplitN(raw, "=", 2)
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
-		return "", "", fmt.Errorf("--tag must use KEY=VALUE format")
+		return "", "", fmt.Errorf("--filter-tag must use KEY=VALUE format")
 	}
 
 	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), nil

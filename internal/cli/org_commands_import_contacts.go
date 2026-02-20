@@ -92,11 +92,11 @@ func runOrgImportSSOUsers(cmd *cobra.Command, inputFile string) error {
 	return writeDataset(cmd, runtime, []string{"email", "group_name", "user_action", "group_action", "membership_action"}, rows)
 }
 
-func runOrgSetAlternateContact(cmd *cobra.Command, contactsFile string) error {
-	if strings.TrimSpace(contactsFile) == "" {
-		return fmt.Errorf("--contacts-file is required")
+func runOrgSetAlternateContact(cmd *cobra.Command, inputFile string) error {
+	if strings.TrimSpace(inputFile) == "" {
+		return fmt.Errorf("--input-file is required")
 	}
-	contactsByType, err := loadOrgContacts(contactsFile)
+	contactsByType, err := loadOrgContacts(inputFile)
 	if err != nil {
 		return err
 	}

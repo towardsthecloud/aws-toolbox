@@ -163,7 +163,7 @@ func withMockR53Deps(t *testing.T, loader func(string, string) (awssdk.Config, e
 
 func TestMilestone5AppStreamDeleteImageRequiresName(t *testing.T) {
 	_, err := executeCommand(t, "appstream", "delete-image")
-	if err == nil || !strings.Contains(err.Error(), "--name is required") {
+	if err == nil || !strings.Contains(err.Error(), "--image-name is required") {
 		t.Fatalf("expected required name error, got %v", err)
 	}
 }
@@ -195,14 +195,14 @@ func TestMilestone5AppStreamDeleteImageDryRun(t *testing.T) {
 		func(awssdk.Config) appStreamAPI { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--dry-run", "appstream", "delete-image", "--name", "image-a")
+	output, err := executeCommand(t, "--output", "json", "--dry-run", "appstream", "delete-image", "--image-name", "image-a")
 	if err != nil {
 		t.Fatalf("execute appstream delete-image dry-run: %v", err)
 	}
 	if deletedPermissions != 0 || deletedImages != 0 {
 		t.Fatalf("expected no deletion calls in dry-run, got permissions=%d image=%d", deletedPermissions, deletedImages)
 	}
-	if !strings.Contains(output, "would-unshare") || !strings.Contains(output, "would-delete") {
+	if !strings.Contains(output, "would-delete") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }
@@ -231,21 +231,21 @@ func TestMilestone5AppStreamDeleteImageNoConfirmExecutes(t *testing.T) {
 		func(awssdk.Config) appStreamAPI { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "appstream", "delete-image", "--name", "image-a")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "appstream", "delete-image", "--image-name", "image-a")
 	if err != nil {
 		t.Fatalf("execute appstream delete-image --no-confirm: %v", err)
 	}
 	if deletedPermissions != 1 || deletedImages != 1 {
 		t.Fatalf("expected delete calls, got permissions=%d image=%d", deletedPermissions, deletedImages)
 	}
-	if !strings.Contains(output, "unshared") || !strings.Contains(output, "deleted") {
+	if !strings.Contains(output, "deleted") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }
 
 func TestMilestone5CFNDeleteStackSetRequiresName(t *testing.T) {
 	_, err := executeCommand(t, "cfn", "delete-stackset")
-	if err == nil || !strings.Contains(err.Error(), "--name is required") {
+	if err == nil || !strings.Contains(err.Error(), "--stackset-name is required") {
 		t.Fatalf("expected required name error, got %v", err)
 	}
 }
@@ -283,14 +283,14 @@ func TestMilestone5CFNDeleteStackSetDryRun(t *testing.T) {
 		func(awssdk.Config) cfnAPI { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--dry-run", "cfn", "delete-stackset", "--name", "stackset-a")
+	output, err := executeCommand(t, "--output", "json", "--dry-run", "cfn", "delete-stackset", "--stackset-name", "stackset-a")
 	if err != nil {
 		t.Fatalf("execute cfn delete-stackset dry-run: %v", err)
 	}
 	if deleteInstancesCalls != 0 || deleteStackSetCalls != 0 {
 		t.Fatalf("expected no delete calls in dry-run, got instances=%d stackset=%d", deleteInstancesCalls, deleteStackSetCalls)
 	}
-	if !strings.Contains(output, "would-delete-stack-instance") || !strings.Contains(output, "would-delete-stackset") {
+	if !strings.Contains(output, "would-delete") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }
@@ -330,14 +330,14 @@ func TestMilestone5CFNDeleteStackSetNoConfirmExecutes(t *testing.T) {
 		func(awssdk.Config) cfnAPI { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--name", "stackset-a")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "stackset-a")
 	if err != nil {
 		t.Fatalf("execute cfn delete-stackset --no-confirm: %v", err)
 	}
 	if deleteInstancesCalls != 1 || describeOperationCalls != 1 || deleteStackSetCalls != 1 {
 		t.Fatalf("unexpected API call counts instances=%d describe=%d stackset=%d", deleteInstancesCalls, describeOperationCalls, deleteStackSetCalls)
 	}
-	if !strings.Contains(output, "deleted-stack-instance") || !strings.Contains(output, "deleted-stackset") {
+	if !strings.Contains(output, "deleted") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }
@@ -378,14 +378,14 @@ func TestMilestone5CFNDeleteStackSetWaitsBeyondLegacyTimeout(t *testing.T) {
 		func(awssdk.Config) cfnAPI { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--name", "stackset-a")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "stackset-a")
 	if err != nil {
 		t.Fatalf("execute cfn delete-stackset with long-running operation: %v", err)
 	}
 	if describeOperationCalls != 200 {
 		t.Fatalf("expected operation polling to continue until success, got %d calls", describeOperationCalls)
 	}
-	if !strings.Contains(output, "deleted-stack-instance") || !strings.Contains(output, "deleted-stackset") {
+	if !strings.Contains(output, "deleted") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }

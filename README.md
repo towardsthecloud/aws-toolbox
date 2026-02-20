@@ -136,7 +136,9 @@ make fmt
 make lint
 make test
 make test-integration
+make coverage
 make build
+make docs
 ```
 
 ## Legacy Scripts

@@ -239,7 +239,7 @@ func TestMilestone5KMSDeleteKeysDryRun(t *testing.T) {
 	if scheduled != 0 {
 		t.Fatalf("expected 0 scheduled deletions in dry-run, got %d", scheduled)
 	}
-	if !strings.Contains(output, "would-schedule-deletion") || !strings.Contains(output, "key-1") {
+	if !strings.Contains(output, "would-delete") || !strings.Contains(output, "key-1") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }

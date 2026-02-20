@@ -21,16 +21,10 @@ func runEC2DeleteAMIs(cmd *cobra.Command, retentionDays int, unusedOnly bool) er
 		return fmt.Errorf("set at least one filter: --unused or --retention-days")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, cfg, client, err := newServiceRuntime(cmd, ec2LoadAWSConfig, ec2NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := ec2LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ec2NewClient(cfg)
 
 	ctx := cmd.Context()
 	images, err := listOwnedImages(ctx, client)
@@ -82,9 +76,9 @@ func runEC2DeleteAMIs(cmd *cobra.Command, retentionDays int, unusedOnly bool) er
 
 	rows := make([][]string, 0, len(targets))
 	for _, image := range targets {
-		action := "would-deregister"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{
 			pointerToString(image.ImageId),
@@ -108,7 +102,7 @@ func runEC2DeleteAMIs(cmd *cobra.Command, retentionDays int, unusedOnly bool) er
 		}
 		if !ok {
 			for i := range rows {
-				rows[i][3] = "cancelled"
+				rows[i][3] = actionCancelled
 			}
 			return writeDataset(cmd, runtime, []string{"image_id", "name", "region", "action"}, rows)
 		}
@@ -116,10 +110,10 @@ func runEC2DeleteAMIs(cmd *cobra.Command, retentionDays int, unusedOnly bool) er
 		for i, image := range targets {
 			_, deleteErr := client.DeregisterImage(ctx, &ec2.DeregisterImageInput{ImageId: image.ImageId})
 			if deleteErr != nil {
-				rows[i][3] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+				rows[i][3] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 				continue
 			}
-			rows[i][3] = "deregistered"
+			rows[i][3] = actionDeleted
 		}
 	}
 
@@ -127,16 +121,10 @@ func runEC2DeleteAMIs(cmd *cobra.Command, retentionDays int, unusedOnly bool) er
 }
 
 func runEC2ListEIPs(cmd *cobra.Command, _ []string) error {
-	runtime, err := newCommandRuntime(cmd)
+	runtime, cfg, client, err := newServiceRuntime(cmd, ec2LoadAWSConfig, ec2NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := ec2LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ec2NewClient(cfg)
 
 	addresses, err := listAddresses(cmd.Context(), client)
 	if err != nil {
@@ -164,16 +152,10 @@ func runEC2ListEIPs(cmd *cobra.Command, _ []string) error {
 }
 
 func runEC2DeleteEIPs(cmd *cobra.Command, _ []string) error {
-	runtime, err := newCommandRuntime(cmd)
+	runtime, cfg, client, err := newServiceRuntime(cmd, ec2LoadAWSConfig, ec2NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := ec2LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ec2NewClient(cfg)
 
 	addresses, err := listAddresses(cmd.Context(), client)
 	if err != nil {
@@ -194,9 +176,9 @@ func runEC2DeleteEIPs(cmd *cobra.Command, _ []string) error {
 
 	rows := make([][]string, 0, len(targets))
 	for _, address := range targets {
-		action := "would-release"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{pointerToString(address.AllocationId), pointerToString(address.PublicIp), cfg.Region, action})
 	}
@@ -215,7 +197,7 @@ func runEC2DeleteEIPs(cmd *cobra.Command, _ []string) error {
 		}
 		if !ok {
 			for i := range rows {
-				rows[i][3] = "cancelled"
+				rows[i][3] = actionCancelled
 			}
 			return writeDataset(cmd, runtime, []string{"allocation_id", "public_ip", "region", "action"}, rows)
 		}
@@ -223,10 +205,10 @@ func runEC2DeleteEIPs(cmd *cobra.Command, _ []string) error {
 		for i, address := range targets {
 			_, releaseErr := client.ReleaseAddress(cmd.Context(), &ec2.ReleaseAddressInput{AllocationId: address.AllocationId})
 			if releaseErr != nil {
-				rows[i][3] = "failed: " + awstbxaws.FormatUserError(releaseErr)
+				rows[i][3] = failedActionMessage(awstbxaws.FormatUserError(releaseErr))
 				continue
 			}
-			rows[i][3] = "released"
+			rows[i][3] = actionDeleted
 		}
 	}
 

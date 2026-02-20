@@ -95,16 +95,10 @@ func newECSPublishImageCommand() *cobra.Command {
 }
 
 func runECSDeleteTaskDefinitions(cmd *cobra.Command, _ []string) error {
-	runtime, err := newCommandRuntime(cmd)
+	runtime, cfg, client, err := newServiceRuntime(cmd, ecsLoadAWSConfig, ecsNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := ecsLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ecsNewClient(cfg)
 
 	taskDefinitionARNs, err := listInactiveTaskDefinitionARNs(cmd.Context(), client)
 	if err != nil {
@@ -115,45 +109,30 @@ func runECSDeleteTaskDefinitions(cmd *cobra.Command, _ []string) error {
 
 	rows := make([][]string, 0, len(taskDefinitionARNs))
 	for _, arn := range taskDefinitionARNs {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{arn, cfg.Region, action})
 	}
 
-	if len(taskDefinitionARNs) == 0 || runtime.Options.DryRun {
-		return writeDataset(cmd, runtime, []string{"task_definition_arn", "region", "action"}, rows)
-	}
-
-	ok, confirmErr := runtime.Prompter.Confirm(
-		fmt.Sprintf("Delete %d inactive ECS task definition(s)", len(taskDefinitionARNs)),
-		runtime.Options.NoConfirm,
-	)
-	if confirmErr != nil {
-		return confirmErr
-	}
-	if !ok {
-		for i := range rows {
-			rows[i][2] = "cancelled"
-		}
-		return writeDataset(cmd, runtime, []string{"task_definition_arn", "region", "action"}, rows)
-	}
-
-	for i, arn := range taskDefinitionARNs {
-		output, deleteErr := client.DeleteTaskDefinitions(cmd.Context(), &ecs.DeleteTaskDefinitionsInput{TaskDefinitions: []string{arn}})
-		if deleteErr != nil {
-			rows[i][2] = "failed: " + awstbxaws.FormatUserError(deleteErr)
-			continue
-		}
-		if len(output.Failures) > 0 {
-			rows[i][2] = "failed: " + ecsFailureReason(output.Failures[0])
-			continue
-		}
-		rows[i][2] = "deleted"
-	}
-
-	return writeDataset(cmd, runtime, []string{"task_definition_arn", "region", "action"}, rows)
+	return runDestructiveActionPlan(cmd, runtime, destructiveActionPlan{
+		Headers:       []string{"task_definition_arn", "region", "action"},
+		Rows:          rows,
+		ActionColumn:  2,
+		ConfirmPrompt: fmt.Sprintf("Delete %d inactive ECS task definition(s)", len(taskDefinitionARNs)),
+		Execute: func(rowIndex int) string {
+			arn := taskDefinitionARNs[rowIndex]
+			output, deleteErr := client.DeleteTaskDefinitions(cmd.Context(), &ecs.DeleteTaskDefinitionsInput{TaskDefinitions: []string{arn}})
+			if deleteErr != nil {
+				return failedActionMessage(awstbxaws.FormatUserError(deleteErr))
+			}
+			if len(output.Failures) > 0 {
+				return failedActionMessage(ecsFailureReason(output.Failures[0]))
+			}
+			return actionDeleted
+		},
+	})
 }
 
 func runECSPublishImage(cmd *cobra.Command, ecrURL, dockerfile, imageTag, contextDir string) error {
@@ -212,14 +191,14 @@ func runECSPublishImage(cmd *cobra.Command, ecrURL, dockerfile, imageTag, contex
 
 	password, runErr := ecsRunner.Run(cmd.Context(), "aws", awsArgs, "")
 	if runErr != nil {
-		rows[0][2] = "failed: " + runErr.Error()
+		rows[0][2] = failedAction(runErr)
 		markRowsSkipped(rows, 1)
 		return writeDataset(cmd, runtime, []string{"step", "command", "action"}, rows)
 	}
 
 	_, runErr = ecsRunner.Run(cmd.Context(), "docker", []string{"login", "--username", "AWS", "--password-stdin", registry}, strings.TrimSpace(password)+"\n")
 	if runErr != nil {
-		rows[0][2] = "failed: " + runErr.Error()
+		rows[0][2] = failedAction(runErr)
 		markRowsSkipped(rows, 1)
 		return writeDataset(cmd, runtime, []string{"step", "command", "action"}, rows)
 	}
@@ -237,7 +216,7 @@ func runECSPublishImage(cmd *cobra.Command, ecrURL, dockerfile, imageTag, contex
 
 	for _, step := range steps {
 		if _, stepErr := ecsRunner.Run(cmd.Context(), step.binary, step.args, ""); stepErr != nil {
-			rows[step.index][2] = "failed: " + stepErr.Error()
+			rows[step.index][2] = failedAction(stepErr)
 			markRowsSkipped(rows, step.index+1)
 			return writeDataset(cmd, runtime, []string{"step", "command", "action"}, rows)
 		}
@@ -248,26 +227,19 @@ func runECSPublishImage(cmd *cobra.Command, ecrURL, dockerfile, imageTag, contex
 }
 
 func listInactiveTaskDefinitionARNs(ctx context.Context, client ecsAPI) ([]string, error) {
-	arns := make([]string, 0)
-	var nextToken *string
-
-	for {
-		page, err := client.ListTaskDefinitions(ctx, &ecs.ListTaskDefinitionsInput{
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[string], error) {
+		page, err := client.ListTaskDefinitions(callCtx, &ecs.ListTaskDefinitionsInput{
 			NextToken: nextToken,
 			Status:    ecstypes.TaskDefinitionStatusInactive,
 		})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[string]{}, err
 		}
-
-		arns = append(arns, page.TaskDefinitionArns...)
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
-	}
-
-	return arns, nil
+		return awstbxaws.PageResult[string]{
+			Items:     page.TaskDefinitionArns,
+			NextToken: page.NextToken,
+		}, nil
+	})
 }
 
 func ecsFailureReason(failure ecstypes.Failure) string {
@@ -285,7 +257,7 @@ func ecsFailureReason(failure ecstypes.Failure) string {
 func markRowsSkipped(rows [][]string, start int) {
 	for i := start; i < len(rows); i++ {
 		if rows[i][2] == "pending" {
-			rows[i][2] = "skipped"
+			rows[i][2] = skippedActionMessage("previous step failed")
 		}
 	}
 }

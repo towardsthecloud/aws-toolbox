@@ -37,24 +37,24 @@ func newS3Command() *cobra.Command {
 
 func newS3DeleteBucketsCommand() *cobra.Command {
 	var emptyOnly bool
-	var nameFilter string
+	var filterNameContains string
 
 	cmd := &cobra.Command{
 		Use:   "delete-buckets",
 		Short: "Delete S3 buckets by emptiness and/or name match",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runS3DeleteBuckets(cmd, emptyOnly, nameFilter)
+			return runS3DeleteBuckets(cmd, emptyOnly, filterNameContains)
 		},
 		SilenceUsage: true,
 	}
 	cmd.Flags().BoolVar(&emptyOnly, "empty", false, "Only target empty buckets with versioning disabled")
-	cmd.Flags().StringVar(&nameFilter, "name", "", "Only target buckets containing this name")
+	cmd.Flags().StringVar(&filterNameContains, "filter-name-contains", "", "Only target buckets containing this text")
 
 	return cmd
 }
 
 func newS3DownloadBucketCommand() *cobra.Command {
-	var bucket string
+	var bucketName string
 	var prefix string
 	var outputDir string
 
@@ -62,11 +62,11 @@ func newS3DownloadBucketCommand() *cobra.Command {
 		Use:   "download-bucket",
 		Short: "Download S3 objects from a bucket prefix",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runS3DownloadBucket(cmd, bucket, prefix, outputDir)
+			return runS3DownloadBucket(cmd, bucketName, prefix, outputDir)
 		},
 		SilenceUsage: true,
 	}
-	cmd.Flags().StringVar(&bucket, "bucket", "", "Bucket name")
+	cmd.Flags().StringVar(&bucketName, "bucket-name", "", "Bucket name")
 	cmd.Flags().StringVar(&prefix, "prefix", "", "Object key prefix to download")
 	cmd.Flags().StringVar(&outputDir, "output-dir", ".", "Local directory for downloaded files")
 
@@ -74,7 +74,7 @@ func newS3DownloadBucketCommand() *cobra.Command {
 }
 
 func newS3ListOldFilesCommand() *cobra.Command {
-	var bucket string
+	var bucketName string
 	var prefix string
 	var olderThanDays int
 
@@ -82,11 +82,11 @@ func newS3ListOldFilesCommand() *cobra.Command {
 		Use:   "list-old-files",
 		Short: "List objects older than a threshold",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runS3ListOldFiles(cmd, bucket, prefix, olderThanDays)
+			return runS3ListOldFiles(cmd, bucketName, prefix, olderThanDays)
 		},
 		SilenceUsage: true,
 	}
-	cmd.Flags().StringVar(&bucket, "bucket", "", "Bucket name")
+	cmd.Flags().StringVar(&bucketName, "bucket-name", "", "Bucket name")
 	cmd.Flags().StringVar(&prefix, "prefix", "", "Optional key prefix")
 	cmd.Flags().IntVar(&olderThanDays, "older-than-days", 60, "Only show files older than this many days")
 
@@ -94,7 +94,7 @@ func newS3ListOldFilesCommand() *cobra.Command {
 }
 
 func newS3SearchObjectsCommand() *cobra.Command {
-	var bucket string
+	var bucketName string
 	var prefix string
 	var keys []string
 
@@ -102,11 +102,11 @@ func newS3SearchObjectsCommand() *cobra.Command {
 		Use:   "search-objects",
 		Short: "Search S3 objects by prefix and/or key list",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runS3SearchObjects(cmd, bucket, prefix, keys)
+			return runS3SearchObjects(cmd, bucketName, prefix, keys)
 		},
 		SilenceUsage: true,
 	}
-	cmd.Flags().StringVar(&bucket, "bucket", "", "Bucket name")
+	cmd.Flags().StringVar(&bucketName, "bucket-name", "", "Bucket name")
 	cmd.Flags().StringVar(&prefix, "prefix", "", "Optional key prefix filter")
 	cmd.Flags().StringSliceVar(&keys, "keys", nil, "Comma-separated keys to search for")
 

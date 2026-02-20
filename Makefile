@@ -9,7 +9,7 @@ LDFLAGS := -X github.com/towardsthecloud/aws-toolbox/internal/version.Version=$(
 LDFLAGS += -X github.com/towardsthecloud/aws-toolbox/internal/version.Commit=$(COMMIT)
 LDFLAGS += -X github.com/towardsthecloud/aws-toolbox/internal/version.Date=$(DATE)
 
-.PHONY: help setup fmt lint test test-integration build docs
+.PHONY: help setup fmt lint test test-integration coverage build docs
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-18s %s\n", $$1, $$2}'
@@ -28,6 +28,12 @@ test: ## Run unit tests
 
 test-integration: ## Run integration tests
 	go test -tags=integration ./...
+
+coverage: ## Enforce coverage gates
+	go test -coverprofile=coverage.cli.out ./internal/cli
+	@cli_cov=$$(go tool cover -func=coverage.cli.out | awk '/^total:/ {gsub("%","",$$3); print $$3}'); \
+	echo "internal/cli coverage: $$cli_cov%"; \
+	awk -v cov="$$cli_cov" 'BEGIN { if (cov+0 < 80) { print "coverage gate failed: internal/cli must be >=80%"; exit 1 } }'
 
 build: ## Build the awstbx binary
 	mkdir -p $(OUT_DIR)

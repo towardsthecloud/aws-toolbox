@@ -176,7 +176,7 @@ func TestOrgGenerateDiagramEmitsMermaid(t *testing.T) {
 
 func TestOrgSetAlternateContactRequiresContactsFile(t *testing.T) {
 	if _, err := executeCommand(t, "org", "set-alternate-contact"); err == nil {
-		t.Fatal("expected contacts-file validation error")
+		t.Fatal("expected input-file validation error")
 	}
 }
 
@@ -213,7 +213,7 @@ func TestOrgSetAlternateContactDryRun(t *testing.T) {
 		t.Fatalf("write contacts file: %v", err)
 	}
 
-	output, err := executeCommand(t, "--output", "json", "--dry-run", "org", "set-alternate-contact", "--contacts-file", contactsFile)
+	output, err := executeCommand(t, "--output", "json", "--dry-run", "org", "set-alternate-contact", "--input-file", contactsFile)
 	if err != nil {
 		t.Fatalf("execute set-alternate-contact --dry-run: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestOrgAssignSSOAccessNoConfirmReportsProvisioningFailure(t *testing.T) {
 		t.Fatalf("execute assign-sso-access --no-confirm with failed status: %v", err)
 	}
 
-	if !strings.Contains(output, "failed: provisioning failed") {
+	if !strings.Contains(output, "failed:provisioning failed") {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }

@@ -46,7 +46,7 @@ func newKMSDeleteKeysCommand() *cobra.Command {
 		},
 		SilenceUsage: true,
 	}
-	cmd.Flags().StringVar(&tagFilter, "tag", "", "Tag filter in KEY=VALUE form")
+	cmd.Flags().StringVar(&tagFilter, "filter-tag", "", "Tag filter in KEY=VALUE form")
 	cmd.Flags().BoolVar(&unusedOnly, "unused", false, "Target disabled customer-managed keys")
 	cmd.Flags().IntVar(&pendingDays, "pending-days", 7, "Days before deletion (7-30)")
 
@@ -60,10 +60,10 @@ func runKMSDeleteKeys(cmd *cobra.Command, tagFilter string, unusedOnly bool, pen
 
 	modeTag := strings.TrimSpace(tagFilter)
 	if modeTag == "" && !unusedOnly {
-		return fmt.Errorf("set one of --tag or --unused")
+		return fmt.Errorf("set one of --filter-tag or --unused")
 	}
 	if modeTag != "" && unusedOnly {
-		return fmt.Errorf("set either --tag or --unused, not both")
+		return fmt.Errorf("set either --filter-tag or --unused, not both")
 	}
 
 	tagKey, tagValue, err := parseTagFilter(modeTag)
@@ -71,16 +71,10 @@ func runKMSDeleteKeys(cmd *cobra.Command, tagFilter string, unusedOnly bool, pen
 		return err
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, _, client, err := newServiceRuntime(cmd, kmsLoadAWSConfig, kmsNewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := kmsLoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := kmsNewClient(cfg)
 
 	keys, err := listCustomerManagedKMSKeys(cmd.Context(), client)
 	if err != nil {
@@ -117,9 +111,9 @@ func runKMSDeleteKeys(cmd *cobra.Command, tagFilter string, unusedOnly bool, pen
 
 	rows := make([][]string, 0, len(targets))
 	for _, key := range targets {
-		action := "would-schedule-deletion"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{pointerToString(key.KeyId), mode, string(key.KeyState), action})
 	}
@@ -137,7 +131,7 @@ func runKMSDeleteKeys(cmd *cobra.Command, tagFilter string, unusedOnly bool, pen
 	}
 	if !ok {
 		for i := range rows {
-			rows[i][3] = "cancelled"
+			rows[i][3] = actionCancelled
 		}
 		return writeDataset(cmd, runtime, []string{"key_id", "mode", "key_state", "action"}, rows)
 	}
@@ -148,10 +142,10 @@ func runKMSDeleteKeys(cmd *cobra.Command, tagFilter string, unusedOnly bool, pen
 			PendingWindowInDays: ptr(int32(pendingDays)),
 		})
 		if deleteErr != nil {
-			rows[i][3] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+			rows[i][3] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 			continue
 		}
-		rows[i][3] = "scheduled"
+		rows[i][3] = actionDeleted
 	}
 
 	return writeDataset(cmd, runtime, []string{"key_id", "mode", "key_state", "action"}, rows)
@@ -159,64 +153,78 @@ func runKMSDeleteKeys(cmd *cobra.Command, tagFilter string, unusedOnly bool, pen
 
 func listCustomerManagedKMSKeys(ctx context.Context, client kmsAPI) ([]kmstypes.KeyMetadata, error) {
 	items := make([]kmstypes.KeyMetadata, 0)
-	var marker *string
 
-	for {
-		page, err := client.ListKeys(ctx, &kms.ListKeysInput{Marker: marker})
-		if err != nil {
-			return nil, err
+	keys, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, marker *string) (awstbxaws.PageResult[kmstypes.KeyListEntry], error) {
+		page, listErr := client.ListKeys(callCtx, &kms.ListKeysInput{Marker: marker})
+		if listErr != nil {
+			return awstbxaws.PageResult[kmstypes.KeyListEntry]{}, listErr
 		}
 
-		for _, key := range page.Keys {
-			keyID := pointerToString(key.KeyId)
-			if keyID == "" {
-				continue
-			}
-
-			describeOut, describeErr := client.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: ptr(keyID)})
-			if describeErr != nil {
-				return nil, describeErr
-			}
-			if describeOut.KeyMetadata == nil {
-				continue
-			}
-			if describeOut.KeyMetadata.KeyManager != kmstypes.KeyManagerTypeCustomer {
-				continue
-			}
-			if describeOut.KeyMetadata.KeyState == kmstypes.KeyStatePendingDeletion {
-				continue
-			}
-
-			items = append(items, *describeOut.KeyMetadata)
+		nextToken := page.NextMarker
+		if !page.Truncated {
+			nextToken = nil
 		}
 
-		if !page.Truncated || page.NextMarker == nil || *page.NextMarker == "" {
-			break
+		return awstbxaws.PageResult[kmstypes.KeyListEntry]{
+			Items:     page.Keys,
+			NextToken: nextToken,
+		}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, key := range keys {
+		keyID := pointerToString(key.KeyId)
+		if keyID == "" {
+			continue
 		}
-		marker = page.NextMarker
+
+		describeOut, describeErr := client.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: ptr(keyID)})
+		if describeErr != nil {
+			return nil, describeErr
+		}
+		if describeOut.KeyMetadata == nil {
+			continue
+		}
+		if describeOut.KeyMetadata.KeyManager != kmstypes.KeyManagerTypeCustomer {
+			continue
+		}
+		if describeOut.KeyMetadata.KeyState == kmstypes.KeyStatePendingDeletion {
+			continue
+		}
+
+		items = append(items, *describeOut.KeyMetadata)
 	}
 
 	return items, nil
 }
 
 func kmsKeyMatchesTag(ctx context.Context, client kmsAPI, key kmstypes.KeyMetadata, tagKey, tagValue string) (bool, error) {
-	var marker *string
-	for {
-		page, err := client.ListResourceTags(ctx, &kms.ListResourceTagsInput{KeyId: key.KeyId, Marker: marker})
-		if err != nil {
-			return false, err
+	tags, err := awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, marker *string) (awstbxaws.PageResult[kmstypes.Tag], error) {
+		page, listErr := client.ListResourceTags(callCtx, &kms.ListResourceTagsInput{KeyId: key.KeyId, Marker: marker})
+		if listErr != nil {
+			return awstbxaws.PageResult[kmstypes.Tag]{}, listErr
 		}
 
-		for _, tag := range page.Tags {
-			if pointerToString(tag.TagKey) == tagKey && pointerToString(tag.TagValue) == tagValue {
-				return true, nil
-			}
+		nextToken := page.NextMarker
+		if !page.Truncated {
+			nextToken = nil
 		}
 
-		if !page.Truncated || page.NextMarker == nil || *page.NextMarker == "" {
-			break
+		return awstbxaws.PageResult[kmstypes.Tag]{
+			Items:     page.Tags,
+			NextToken: nextToken,
+		}, nil
+	})
+	if err != nil {
+		return false, err
+	}
+
+	for _, tag := range tags {
+		if pointerToString(tag.TagKey) == tagKey && pointerToString(tag.TagValue) == tagValue {
+			return true, nil
 		}
-		marker = page.NextMarker
 	}
 
 	return false, nil

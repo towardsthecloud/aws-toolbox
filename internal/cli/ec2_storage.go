@@ -18,16 +18,10 @@ func runEC2DeleteSnapshots(cmd *cobra.Command, retentionDays int) error {
 		return fmt.Errorf("--retention-days must be >= 0")
 	}
 
-	runtime, err := newCommandRuntime(cmd)
+	runtime, cfg, client, err := newServiceRuntime(cmd, ec2LoadAWSConfig, ec2NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := ec2LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ec2NewClient(cfg)
 
 	snapshots, err := listSnapshots(cmd.Context(), client)
 	if err != nil {
@@ -77,9 +71,9 @@ func runEC2DeleteSnapshots(cmd *cobra.Command, retentionDays int) error {
 
 	rows := make([][]string, 0, len(targets))
 	for _, snapshot := range targets {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{
 			pointerToString(snapshot.SnapshotId),
@@ -103,7 +97,7 @@ func runEC2DeleteSnapshots(cmd *cobra.Command, retentionDays int) error {
 		}
 		if !ok {
 			for i := range rows {
-				rows[i][3] = "cancelled"
+				rows[i][3] = actionCancelled
 			}
 			return writeDataset(cmd, runtime, []string{"snapshot_id", "volume_id", "region", "action"}, rows)
 		}
@@ -111,10 +105,10 @@ func runEC2DeleteSnapshots(cmd *cobra.Command, retentionDays int) error {
 		for i, snapshot := range targets {
 			_, deleteErr := client.DeleteSnapshot(cmd.Context(), &ec2.DeleteSnapshotInput{SnapshotId: snapshot.SnapshotId})
 			if deleteErr != nil {
-				rows[i][3] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+				rows[i][3] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 				continue
 			}
-			rows[i][3] = "deleted"
+			rows[i][3] = actionDeleted
 		}
 	}
 
@@ -122,16 +116,10 @@ func runEC2DeleteSnapshots(cmd *cobra.Command, retentionDays int) error {
 }
 
 func runEC2DeleteVolumes(cmd *cobra.Command, _ []string) error {
-	runtime, err := newCommandRuntime(cmd)
+	runtime, cfg, client, err := newServiceRuntime(cmd, ec2LoadAWSConfig, ec2NewClient)
 	if err != nil {
 		return err
 	}
-
-	cfg, err := ec2LoadAWSConfig(runtime.Options.Profile, runtime.Options.Region)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ec2NewClient(cfg)
 
 	volumes, err := listUnattachedVolumes(cmd.Context(), client)
 	if err != nil {
@@ -144,9 +132,9 @@ func runEC2DeleteVolumes(cmd *cobra.Command, _ []string) error {
 
 	rows := make([][]string, 0, len(volumes))
 	for _, volume := range volumes {
-		action := "would-delete"
+		action := actionWouldDelete
 		if !runtime.Options.DryRun {
-			action = "pending"
+			action = actionPending
 		}
 		rows = append(rows, []string{
 			pointerToString(volume.VolumeId),
@@ -170,7 +158,7 @@ func runEC2DeleteVolumes(cmd *cobra.Command, _ []string) error {
 		}
 		if !ok {
 			for i := range rows {
-				rows[i][3] = "cancelled"
+				rows[i][3] = actionCancelled
 			}
 			return writeDataset(cmd, runtime, []string{"volume_id", "size_gib", "region", "action"}, rows)
 		}
@@ -178,10 +166,10 @@ func runEC2DeleteVolumes(cmd *cobra.Command, _ []string) error {
 		for i, volume := range volumes {
 			_, deleteErr := client.DeleteVolume(cmd.Context(), &ec2.DeleteVolumeInput{VolumeId: volume.VolumeId})
 			if deleteErr != nil {
-				rows[i][3] = "failed: " + awstbxaws.FormatUserError(deleteErr)
+				rows[i][3] = failedActionMessage(awstbxaws.FormatUserError(deleteErr))
 				continue
 			}
-			rows[i][3] = "deleted"
+			rows[i][3] = actionDeleted
 		}
 	}
 
@@ -189,20 +177,16 @@ func runEC2DeleteVolumes(cmd *cobra.Command, _ []string) error {
 }
 
 func listSnapshots(ctx context.Context, client ec2API) ([]ec2types.Snapshot, error) {
-	items := make([]ec2types.Snapshot, 0)
-	var nextToken *string
-	for {
-		page, err := client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{OwnerIds: []string{"self"}, NextToken: nextToken})
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[ec2types.Snapshot], error) {
+		page, err := client.DescribeSnapshots(callCtx, &ec2.DescribeSnapshotsInput{OwnerIds: []string{"self"}, NextToken: nextToken})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[ec2types.Snapshot]{}, err
 		}
-		items = append(items, page.Snapshots...)
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
-	}
-	return items, nil
+		return awstbxaws.PageResult[ec2types.Snapshot]{
+			Items:     page.Snapshots,
+			NextToken: page.NextToken,
+		}, nil
+	})
 }
 
 func listSnapshotIDsUsedByAMIs(ctx context.Context, client ec2API) (map[string]struct{}, error) {
@@ -237,21 +221,17 @@ func volumeExists(ctx context.Context, client ec2API, volumeID string) (bool, er
 }
 
 func listUnattachedVolumes(ctx context.Context, client ec2API) ([]ec2types.Volume, error) {
-	items := make([]ec2types.Volume, 0)
-	var nextToken *string
-	for {
-		page, err := client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
+	return awstbxaws.CollectAllPages(ctx, func(callCtx context.Context, nextToken *string) (awstbxaws.PageResult[ec2types.Volume], error) {
+		page, err := client.DescribeVolumes(callCtx, &ec2.DescribeVolumesInput{
 			Filters:   []ec2types.Filter{{Name: ptr("status"), Values: []string{"available"}}},
 			NextToken: nextToken,
 		})
 		if err != nil {
-			return nil, err
+			return awstbxaws.PageResult[ec2types.Volume]{}, err
 		}
-		items = append(items, page.Volumes...)
-		if page.NextToken == nil || *page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
-	}
-	return items, nil
+		return awstbxaws.PageResult[ec2types.Volume]{
+			Items:     page.Volumes,
+			NextToken: page.NextToken,
+		}, nil
+	})
 }
