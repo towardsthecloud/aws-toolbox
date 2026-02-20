@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report a bug in the awstbx CLI
 title: ''
 labels: bug
 assignees: ''
@@ -12,21 +12,22 @@ A clear and concise description of what the bug is.
 
 **To Reproduce**
 Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+1. Run command: `awstbx ...`
+2. Run command: `awstbx ...`
+3. See error
 
 **Expected behavior**
 A clear and concise description of what you expected to happen.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**Actual output**
+Paste the exact output or error message.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. macOS]
- - AWS CLI version (Run the command: `aws --version`): [e.g. aws-cli/2.1.30 Python/3.9.2 Darwin/20.3.0 source/x86_64 prompt/off]
-- Name of the script that contains the bug.
+**Environment**
+- OS: [e.g. macOS 15, Ubuntu 24.04]
+- `awstbx --version`:
+- `aws --version`:
+- Authentication mode used: [e.g. `--profile`, env vars, SSO]
+- Target AWS region:
 
 **Additional context**
 Add any other context about the problem here.
