@@ -5,6 +5,7 @@ VERSION ?= dev
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 GOLANGCI_LINT_VERSION ?= v1.64.8
+GOLANGCI_LINT_TIMEOUT ?= 5m
 GORELEASER_VERSION ?= v2.13.3
 GIT_CLIFF_VERSION ?= 2.12.0
 GOBIN ?= $(shell go env GOPATH)/bin
@@ -54,7 +55,7 @@ fmt: ## Format Go code
 	go fmt ./...
 
 lint: ## Run golangci-lint
-	golangci-lint run
+	golangci-lint run --timeout $(GOLANGCI_LINT_TIMEOUT)
 
 test: ## Run unit tests
 	go test -race ./...
