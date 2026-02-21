@@ -13,8 +13,8 @@ Total: 58 legacy items.
 | Legacy item | `awstbx` replacement | Notes |
 | --- | --- | --- |
 | `archived/appstream/appstream_delete_image.py` | `awstbx appstream delete-image` | Direct port |
-| `archived/cloudformation/cfn_delete_stackset.py` | `awstbx cfn delete-stackset` | Direct port |
-| `archived/cloudformation/cfn_find_stack_by_resource.py` | `awstbx cfn find-stack-by-resource` | Direct port |
+| `archived/cloudformation/cfn_delete_stackset.py` | `awstbx cloudformation delete-stackset` | Direct port |
+| `archived/cloudformation/cfn_find_stack_by_resource.py` | `awstbx cloudformation find-stack-by-resource` | Direct port |
 | `archived/cloudwatch/cw_count_log_groups.py` | `awstbx cloudwatch count-log-groups` | Direct port |
 | `archived/cloudwatch/cw_delete_log_groups.py` | `awstbx cloudwatch delete-log-groups` | Merged command |
 | `archived/cloudwatch/cw_delete_log_groups_by_name.py` | `awstbx cloudwatch delete-log-groups --filter-name-contains <text>` | Merged command |

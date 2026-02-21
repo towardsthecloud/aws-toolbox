@@ -92,7 +92,7 @@ func TestCoverageBoostRootExecutionBranches(t *testing.T) {
 func TestCoverageBoostLegacyFlagsRejected(t *testing.T) {
 	cases := [][]string{
 		{"appstream", "delete-image", "--name", "img-a"},
-		{"cfn", "delete-stackset", "--name", "stackset-a"},
+		{"cloudformation", "delete-stackset", "--name", "stackset-a"},
 		{"cloudwatch", "delete-log-groups", "--keep", "30d"},
 		{"ec2", "delete-security-groups", "--tag", "env=dev"},
 		{"kms", "delete-keys", "--tag", "env=dev"},

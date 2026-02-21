@@ -97,7 +97,7 @@ func executeCommand(t *testing.T, args ...string) (string, error) {
 }
 
 func TestDeleteStackSetRequiresName(t *testing.T) {
-	_, err := executeCommand(t, "cfn", "delete-stackset")
+	_, err := executeCommand(t, "cloudformation", "delete-stackset")
 	if err == nil || !strings.Contains(err.Error(), "--stackset-name is required") {
 		t.Fatalf("expected required name error, got %v", err)
 	}
@@ -136,7 +136,7 @@ func TestDeleteStackSetDryRun(t *testing.T) {
 		func(awssdk.Config) API { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--dry-run", "cfn", "delete-stackset", "--stackset-name", "stackset-a")
+	output, err := executeCommand(t, "--output", "json", "--dry-run", "cloudformation", "delete-stackset", "--stackset-name", "stackset-a")
 	if err != nil {
 		t.Fatalf("execute cfn delete-stackset dry-run: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestDeleteStackSetNoConfirmExecutes(t *testing.T) {
 		func(awssdk.Config) API { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "stackset-a")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "stackset-a")
 	if err != nil {
 		t.Fatalf("execute cfn delete-stackset --no-confirm: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestDeleteStackSetWaitsBeyondLegacyTimeout(t *testing.T) {
 		func(awssdk.Config) API { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "stackset-a")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "stackset-a")
 	if err != nil {
 		t.Fatalf("execute cfn delete-stackset with long-running operation: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestDeleteStackSetWaitsBeyondLegacyTimeout(t *testing.T) {
 }
 
 func TestFindStackByResourceRequiresResource(t *testing.T) {
-	_, err := executeCommand(t, "cfn", "find-stack-by-resource")
+	_, err := executeCommand(t, "cloudformation", "find-stack-by-resource")
 	if err == nil || !strings.Contains(err.Error(), "--resource is required") {
 		t.Fatalf("expected required resource error, got %v", err)
 	}
@@ -284,7 +284,7 @@ func TestFindStackByResourceMatchesNestedWhenRequested(t *testing.T) {
 		func(awssdk.Config) API { return client },
 	)
 
-	output, err := executeCommand(t, "--output", "json", "cfn", "find-stack-by-resource", "--resource", "AWS::S3::Bucket", "--exact", "--include-nested")
+	output, err := executeCommand(t, "--output", "json", "cloudformation", "find-stack-by-resource", "--resource", "AWS::S3::Bucket", "--exact", "--include-nested")
 	if err != nil {
 		t.Fatalf("execute cfn find-stack-by-resource: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestDeleteStackSetUserDeclines(t *testing.T) {
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
 	// Without --no-confirm, stdin is empty so the prompter reads EOF and returns false (declined).
-	output, err := executeCommand(t, "--output", "json", "cfn", "delete-stackset", "--stackset-name", "my-stackset")
+	output, err := executeCommand(t, "--output", "json", "cloudformation", "delete-stackset", "--stackset-name", "my-stackset")
 	if err != nil {
 		t.Fatalf("expected no error when user declines, got %v", err)
 	}
@@ -339,7 +339,7 @@ func TestDeleteStackSetListInstancesError(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	_, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "my-stackset")
+	_, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "my-stackset")
 	if err == nil || !strings.Contains(err.Error(), "list stack set instances") {
 		t.Fatalf("expected list instances error, got %v", err)
 	}
@@ -363,7 +363,7 @@ func TestDeleteStackSetInstanceDeletionError(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "my-stackset")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "my-stackset")
 	if err != nil {
 		t.Fatalf("command should not return error, got %v", err)
 	}
@@ -401,7 +401,7 @@ func TestDeleteStackSetWaitOperationFailure(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "my-stackset")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "my-stackset")
 	if err != nil {
 		t.Fatalf("command should not return error, got %v", err)
 	}
@@ -441,7 +441,7 @@ func TestDeleteStackSetDeleteStackSetError(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "my-stackset")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "my-stackset")
 	if err != nil {
 		t.Fatalf("command should not return error, got %v", err)
 	}
@@ -469,7 +469,7 @@ func TestDeleteStackSetNoInstances(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "empty-stackset")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "empty-stackset")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -492,7 +492,7 @@ func TestDeleteStackSetDryRunNoInstances(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "--dry-run", "cfn", "delete-stackset", "--stackset-name", "empty-stackset")
+	output, err := executeCommand(t, "--output", "json", "--dry-run", "cloudformation", "delete-stackset", "--stackset-name", "empty-stackset")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -530,7 +530,7 @@ func TestDeleteStackSetEmptyOperationID(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "my-stackset")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "my-stackset")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1065,7 +1065,7 @@ func TestFindStackByResourceSubstringMatch(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "cfn", "find-stack-by-resource", "--resource", "bucket")
+	output, err := executeCommand(t, "--output", "json", "cloudformation", "find-stack-by-resource", "--resource", "bucket")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1103,7 +1103,7 @@ func TestFindStackByResourceNoMatches(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "cfn", "find-stack-by-resource", "--resource", "nonexistent-thing")
+	output, err := executeCommand(t, "--output", "json", "cloudformation", "find-stack-by-resource", "--resource", "nonexistent-thing")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1122,7 +1122,7 @@ func TestFindStackByResourceListStacksError(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	_, err := executeCommand(t, "--output", "json", "cfn", "find-stack-by-resource", "--resource", "something")
+	_, err := executeCommand(t, "--output", "json", "cloudformation", "find-stack-by-resource", "--resource", "something")
 	if err == nil || !strings.Contains(err.Error(), "list stacks") {
 		t.Fatalf("expected list stacks error, got %v", err)
 	}
@@ -1144,7 +1144,7 @@ func TestFindStackByResourceListResourcesError(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	_, err := executeCommand(t, "--output", "json", "cfn", "find-stack-by-resource", "--resource", "something")
+	_, err := executeCommand(t, "--output", "json", "cloudformation", "find-stack-by-resource", "--resource", "something")
 	if err == nil || !strings.Contains(err.Error(), "list resources for stack") {
 		t.Fatalf("expected list resources error, got %v", err)
 	}
@@ -1176,7 +1176,7 @@ func TestFindStackByResourceExcludesNestedByDefault(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "cfn", "find-stack-by-resource", "--resource", "Bucket")
+	output, err := executeCommand(t, "--output", "json", "cloudformation", "find-stack-by-resource", "--resource", "Bucket")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1213,7 +1213,7 @@ func TestFindStackByResourceMatchesPhysicalID(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "cfn", "find-stack-by-resource", "--resource", "prod-users-table", "--exact")
+	output, err := executeCommand(t, "--output", "json", "cloudformation", "find-stack-by-resource", "--resource", "prod-users-table", "--exact")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1252,7 +1252,7 @@ func TestDeleteStackSetMultipleInstancesPartialFailure(t *testing.T) {
 
 	withMockDeps(t, defaultMockLoader(), defaultMockClientFactory(client))
 
-	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cfn", "delete-stackset", "--stackset-name", "my-stackset")
+	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "my-stackset")
 	if err != nil {
 		t.Fatalf("command should not return error, got %v", err)
 	}
