@@ -17,7 +17,7 @@ LDFLAGS := -X github.com/towardsthecloud/aws-toolbox/internal/version.Version=$(
 LDFLAGS += -X github.com/towardsthecloud/aws-toolbox/internal/version.Commit=$(COMMIT)
 LDFLAGS += -X github.com/towardsthecloud/aws-toolbox/internal/version.Date=$(DATE)
 
-.PHONY: help setup fmt lint test test-integration coverage build docs changelog changelog-current release-check release-snapshot tag
+.PHONY: help setup setup-lint fmt lint test test-integration coverage build docs changelog changelog-current release-check release-snapshot tag
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-18s %s\n", $$1, $$2}'
@@ -50,6 +50,9 @@ setup: ## Install local development tooling
 		install "$$tmpdir/git-cliff-$(GIT_CLIFF_VERSION)/git-cliff" "$(GOBIN)/git-cliff"; \
 		rm -rf "$$tmpdir"; \
 	fi
+
+setup-lint: ## Install tooling required for linting only
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 fmt: ## Format Go code
 	go fmt ./...

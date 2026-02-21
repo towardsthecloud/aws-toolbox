@@ -24,15 +24,15 @@ awstbx appstream delete-image --image-name image-name --no-confirm`),
 	"awstbx appstream delete-image": strings.TrimSpace(`
 awstbx appstream delete-image --image-name image-name --dry-run
 awstbx appstream delete-image --image-name image-name --no-confirm`),
-	"awstbx cfn": strings.TrimSpace(`
-awstbx cfn delete-stackset --stackset-name my-stackset --dry-run
-awstbx cfn find-stack-by-resource --resource i-0123456789abcdef0`),
-	"awstbx cfn delete-stackset": strings.TrimSpace(`
-awstbx cfn delete-stackset --stackset-name my-stackset --dry-run
-awstbx cfn delete-stackset --stackset-name my-stackset --no-confirm`),
-	"awstbx cfn find-stack-by-resource": strings.TrimSpace(`
-awstbx cfn find-stack-by-resource --resource i-0123456789abcdef0
-awstbx cfn find-stack-by-resource --resource AWS::S3::Bucket --include-nested`),
+	"awstbx cloudformation": strings.TrimSpace(`
+awstbx cloudformation delete-stackset --stackset-name my-stackset --dry-run
+awstbx cloudformation find-stack-by-resource --resource i-0123456789abcdef0`),
+	"awstbx cloudformation delete-stackset": strings.TrimSpace(`
+awstbx cloudformation delete-stackset --stackset-name my-stackset --dry-run
+awstbx cloudformation delete-stackset --stackset-name my-stackset --no-confirm`),
+	"awstbx cloudformation find-stack-by-resource": strings.TrimSpace(`
+awstbx cloudformation find-stack-by-resource --resource i-0123456789abcdef0
+awstbx cloudformation find-stack-by-resource --resource AWS::S3::Bucket --include-nested`),
 	"awstbx cloudwatch": strings.TrimSpace(`
 awstbx cloudwatch count-log-groups
 awstbx cloudwatch delete-log-groups --retention-days 30 --filter-name-contains /aws/lambda --dry-run`),

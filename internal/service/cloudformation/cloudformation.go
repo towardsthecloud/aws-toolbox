@@ -1,4 +1,4 @@
-package cfn
+package cloudformation
 
 import (
 	"context"
@@ -36,7 +36,7 @@ var newClient = func(cfg awssdk.Config) API {
 var sleep = time.Sleep
 
 func NewCommand() *cobra.Command {
-	cmd := cliutil.NewServiceGroupCommand("cfn", "Manage CloudFormation resources")
+	cmd := cliutil.NewServiceGroupCommand("cloudformation", "Manage CloudFormation resources")
 
 	cmd.AddCommand(newDeleteStackSetCommand())
 	cmd.AddCommand(newFindStackByResourceCommand())

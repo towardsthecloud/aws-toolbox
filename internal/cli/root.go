@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/towardsthecloud/aws-toolbox/internal/cliutil"
 	"github.com/towardsthecloud/aws-toolbox/internal/service/appstream"
-	"github.com/towardsthecloud/aws-toolbox/internal/service/cfn"
+	"github.com/towardsthecloud/aws-toolbox/internal/service/cloudformation"
 	"github.com/towardsthecloud/aws-toolbox/internal/service/cloudwatch"
 	"github.com/towardsthecloud/aws-toolbox/internal/service/ec2"
 	"github.com/towardsthecloud/aws-toolbox/internal/service/ecs"
@@ -61,7 +61,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(newVersionCommand())
 
 	rootCmd.AddCommand(appstream.NewCommand())
-	rootCmd.AddCommand(cfn.NewCommand())
+	rootCmd.AddCommand(cloudformation.NewCommand())
 	rootCmd.AddCommand(cloudwatch.NewCommand())
 	rootCmd.AddCommand(ec2.NewCommand())
 	rootCmd.AddCommand(ecs.NewCommand())

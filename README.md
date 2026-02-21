@@ -102,7 +102,7 @@ awstbx cloudwatch count-log-groups --output json
 `awstbx` currently includes:
 
 - `appstream`
-- `cfn`
+- `cloudformation`
 - `cloudwatch`
 - `ec2`
 - `ecs`
