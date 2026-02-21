@@ -18,8 +18,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install tooling
-        run: make setup
+      - name: Install lint tooling
+        run: make setup-lint
 
       - name: Run lint target
         run: make lint
