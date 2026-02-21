@@ -1,4 +1,4 @@
-package cfn
+package cloudformation
 
 import (
 	"bytes"
@@ -138,7 +138,7 @@ func TestDeleteStackSetDryRun(t *testing.T) {
 
 	output, err := executeCommand(t, "--output", "json", "--dry-run", "cloudformation", "delete-stackset", "--stackset-name", "stackset-a")
 	if err != nil {
-		t.Fatalf("execute cfn delete-stackset dry-run: %v", err)
+		t.Fatalf("execute cloudformation delete-stackset dry-run: %v", err)
 	}
 	if deleteInstancesCalls != 0 || deleteStackSetCalls != 0 {
 		t.Fatalf("expected no delete calls in dry-run, got instances=%d stackset=%d", deleteInstancesCalls, deleteStackSetCalls)
@@ -185,7 +185,7 @@ func TestDeleteStackSetNoConfirmExecutes(t *testing.T) {
 
 	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "stackset-a")
 	if err != nil {
-		t.Fatalf("execute cfn delete-stackset --no-confirm: %v", err)
+		t.Fatalf("execute cloudformation delete-stackset --no-confirm: %v", err)
 	}
 	if deleteInstancesCalls != 1 || describeOperationCalls != 1 || deleteStackSetCalls != 1 {
 		t.Fatalf("unexpected API call counts instances=%d describe=%d stackset=%d", deleteInstancesCalls, describeOperationCalls, deleteStackSetCalls)
@@ -233,7 +233,7 @@ func TestDeleteStackSetWaitsBeyondLegacyTimeout(t *testing.T) {
 
 	output, err := executeCommand(t, "--output", "json", "--no-confirm", "cloudformation", "delete-stackset", "--stackset-name", "stackset-a")
 	if err != nil {
-		t.Fatalf("execute cfn delete-stackset with long-running operation: %v", err)
+		t.Fatalf("execute cloudformation delete-stackset with long-running operation: %v", err)
 	}
 	if describeOperationCalls != 200 {
 		t.Fatalf("expected operation polling to continue until success, got %d calls", describeOperationCalls)
@@ -286,7 +286,7 @@ func TestFindStackByResourceMatchesNestedWhenRequested(t *testing.T) {
 
 	output, err := executeCommand(t, "--output", "json", "cloudformation", "find-stack-by-resource", "--resource", "AWS::S3::Bucket", "--exact", "--include-nested")
 	if err != nil {
-		t.Fatalf("execute cfn find-stack-by-resource: %v", err)
+		t.Fatalf("execute cloudformation find-stack-by-resource: %v", err)
 	}
 	if !strings.Contains(output, "parent-stack") || !strings.Contains(output, "nested-stack") {
 		t.Fatalf("expected both parent and nested matches, output=%s", output)
