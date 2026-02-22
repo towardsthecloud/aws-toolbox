@@ -39,29 +39,9 @@ func runDeleteSnapshots(cmd *cobra.Command, retentionDays int) error {
 		cutoff = time.Now().UTC().AddDate(0, 0, -retentionDays)
 	}
 
-	// Collect unique volume IDs from candidate snapshots so we can batch-check
-	// which volumes still exist, avoiding an API call per snapshot.
-	candidateVolumeIDs := make(map[string]struct{})
-	for _, snapshot := range snapshots {
-		snapshotID := cliutil.PointerToString(snapshot.SnapshotId)
-		if snapshotID == "" {
-			continue
-		}
-		if _, used := usedSnapshots[snapshotID]; used {
-			continue
-		}
-		if retentionDays > 0 && snapshot.StartTime != nil && snapshot.StartTime.After(cutoff) {
-			continue
-		}
-		if vid := cliutil.PointerToString(snapshot.VolumeId); vid != "" {
-			candidateVolumeIDs[vid] = struct{}{}
-		}
-	}
-
-	existingVolumes, err := listExistingVolumeIDs(cmd.Context(), client, candidateVolumeIDs)
-	if err != nil {
-		return fmt.Errorf("check volumes: %s", awstbxaws.FormatUserError(err))
-	}
+	// Cache volume existence checks so that multiple snapshots referencing the
+	// same volume only trigger a single DescribeVolumes API call.
+	checkedVolumes := make(map[string]bool)
 
 	targets := make([]ec2types.Snapshot, 0)
 	for _, snapshot := range snapshots {
@@ -78,7 +58,15 @@ func runDeleteSnapshots(cmd *cobra.Command, retentionDays int) error {
 
 		volumeID := cliutil.PointerToString(snapshot.VolumeId)
 		if volumeID != "" {
-			if _, exists := existingVolumes[volumeID]; exists {
+			exists, ok := checkedVolumes[volumeID]
+			if !ok {
+				exists, err = volumeExists(cmd.Context(), client, volumeID)
+				if err != nil {
+					return err
+				}
+				checkedVolumes[volumeID] = exists
+			}
+			if exists {
 				continue
 			}
 		}
@@ -228,59 +216,17 @@ func listSnapshotIDsUsedByAMIs(ctx context.Context, client API) (map[string]stru
 	return used, nil
 }
 
-// listExistingVolumeIDs checks which of the given volume IDs still exist by
-// querying them in batches (DescribeVolumes accepts up to 200 IDs per call).
-// It returns the subset of IDs that correspond to existing volumes.
-func listExistingVolumeIDs(ctx context.Context, client API, volumeIDs map[string]struct{}) (map[string]struct{}, error) {
-	existing := make(map[string]struct{}, len(volumeIDs))
-	if len(volumeIDs) == 0 {
-		return existing, nil
+func volumeExists(ctx context.Context, client API, volumeID string) (bool, error) {
+	output, err := client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{VolumeIds: []string{volumeID}})
+	if err != nil {
+		code := awsErrorCode(err)
+		if strings.EqualFold(code, "InvalidVolume.NotFound") {
+			return false, nil
+		}
+		return false, fmt.Errorf("check volume %s: %s", volumeID, awstbxaws.FormatUserError(err))
 	}
 
-	const batchSize = 200
-	ids := make([]string, 0, len(volumeIDs))
-	for id := range volumeIDs {
-		ids = append(ids, id)
-	}
-
-	for start := 0; start < len(ids); start += batchSize {
-		end := start + batchSize
-		if end > len(ids) {
-			end = len(ids)
-		}
-		batch := ids[start:end]
-
-		output, err := client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{VolumeIds: batch})
-		if err != nil {
-			code := awsErrorCode(err)
-			if strings.EqualFold(code, "InvalidVolume.NotFound") {
-				// At least one volume in the batch doesn't exist.
-				// Fall back to individual lookups for this batch.
-				for _, id := range batch {
-					singleOut, singleErr := client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{VolumeIds: []string{id}})
-					if singleErr != nil {
-						if strings.EqualFold(awsErrorCode(singleErr), "InvalidVolume.NotFound") {
-							continue
-						}
-						return nil, fmt.Errorf("check volume %s: %s", id, awstbxaws.FormatUserError(singleErr))
-					}
-					if len(singleOut.Volumes) > 0 {
-						existing[id] = struct{}{}
-					}
-				}
-				continue
-			}
-			return nil, fmt.Errorf("describe volumes: %s", awstbxaws.FormatUserError(err))
-		}
-
-		for _, vol := range output.Volumes {
-			if vol.VolumeId != nil {
-				existing[*vol.VolumeId] = struct{}{}
-			}
-		}
-	}
-
-	return existing, nil
+	return len(output.Volumes) > 0, nil
 }
 
 func listUnattachedVolumes(ctx context.Context, client API) ([]ec2types.Volume, error) {
