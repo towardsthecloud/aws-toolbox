@@ -39,6 +39,10 @@ func runDeleteSnapshots(cmd *cobra.Command, retentionDays int) error {
 		cutoff = time.Now().UTC().AddDate(0, 0, -retentionDays)
 	}
 
+	// Cache volume existence checks so that multiple snapshots referencing the
+	// same volume only trigger a single DescribeVolumes API call.
+	checkedVolumes := make(map[string]bool)
+
 	targets := make([]ec2types.Snapshot, 0)
 	for _, snapshot := range snapshots {
 		snapshotID := cliutil.PointerToString(snapshot.SnapshotId)
@@ -54,9 +58,13 @@ func runDeleteSnapshots(cmd *cobra.Command, retentionDays int) error {
 
 		volumeID := cliutil.PointerToString(snapshot.VolumeId)
 		if volumeID != "" {
-			exists, existsErr := volumeExists(cmd.Context(), client, volumeID)
-			if existsErr != nil {
-				return existsErr
+			exists, ok := checkedVolumes[volumeID]
+			if !ok {
+				exists, err = volumeExists(cmd.Context(), client, volumeID)
+				if err != nil {
+					return err
+				}
+				checkedVolumes[volumeID] = exists
 			}
 			if exists {
 				continue
