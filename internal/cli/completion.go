@@ -17,7 +17,7 @@ To load completions for every new session, execute once:
 Bash:
 
   # Linux:
-  awstbx completion bash > /etc/bash_completion.d/awstbx
+  awstbx completion bash > ~/.local/share/bash-completion/completions/awstbx
 
   # macOS:
   awstbx completion bash > $(brew --prefix)/etc/bash_completion.d/awstbx
