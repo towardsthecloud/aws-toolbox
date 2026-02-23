@@ -13,8 +13,10 @@ awstbx ec2 list-eips --output json
 awstbx cloudwatch delete-log-groups --retention-days 30 --dry-run
 awstbx ssm import-parameters --input-file params.json --no-confirm`),
 	"awstbx completion": strings.TrimSpace(`
+# Linux:
 awstbx completion zsh > "${fpath[1]}/_awstbx"
-awstbx completion bash > /etc/bash_completion.d/awstbx`),
+# macOS:
+awstbx completion zsh > $(brew --prefix)/share/zsh/site-functions/_awstbx`),
 	"awstbx version": strings.TrimSpace(`
 awstbx version
 awstbx --version`),

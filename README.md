@@ -1,4 +1,4 @@
-# [![AWS Toolbox header](./icons/github-title-banner.png)](https://towardsthecloud.com)
+[![AWS Toolbox header](./icons/github-title-banner.png)](https://towardsthecloud.com)
 
 # AWS Toolbox (awstbx)
 
@@ -6,6 +6,7 @@
 It preserves the existing script functionality behind a single, consistent interface you can run directly from your terminal.
 
 It provides:
+
 - One consistent command surface: `awstbx <service> <action>`
 - Shared auth + region/profile handling
 - Safe defaults (`--dry-run`, confirmation prompts)
@@ -34,15 +35,18 @@ It provides:
 > ### Here's what's included:
 >
 > **1. We Provision a Secure [Landing Zone](https://towardsthecloud.com/services/aws-landing-zone) That Accelerates Compliance**
+>
 > - Multi-account architecture with security controls and compliance guardrails from day one
 > - Achieve 100% on [CIS AWS Foundation Benchmark](https://docs.aws.amazon.com/securityhub/latest/userguide/cis-aws-foundations-benchmark.html) and 96% on [AWS Foundational Security Best Practices](https://docs.aws.amazon.com/securityhub/latest/userguide/fsbp-standard.html)
 > - These benchmarks map directly to **SOC 2**, **HIPAA**, and **PCI-DSS** controls, cutting months from your compliance timeline
 >
 > **2. We Monitor Proactively to Stop Cost Waste and Security Drift**
+>
 > - Quarterly cost reviews identify unattached volumes, oversized instances, and orphaned resources. We clean up waste before it compounds, reducing your AWS spend by an average of 20-30%, with [occasional outliers of 60+%](https://towardsthecloud.com/services/aws-cost-optimization#case-study).
 > - Continuous security monitoring across all accounts catches misconfigurations and policy violations immediately. You get alerts while issues are still fixable, not after they're breaches.
 >
 > **3. We Provide Senior AWS Expertise That Accelerates Delivery**
+>
 > - Your developers get access to production-ready IaC templates for common patterns: multi-az applications, event-driven architectures, secure data pipelines. What typically takes weeks of research and iteration ships in hours
 > - Get solutions architecture guidance on VPC design, IAM policies, disaster recovery, observability and more. Your team makes faster decisions because we've already solved these problems for enterprises at scale
 >
@@ -127,25 +131,31 @@ Generate shell completion scripts with:
 awstbx completion [bash|zsh|fish|powershell]
 ```
 
+To load completions for every new session, execute once:
+
 ### Bash
 
 ```bash
-mkdir -p ~/.local/share/bash-completion/completions
+# Linux:
 awstbx completion bash > ~/.local/share/bash-completion/completions/awstbx
+
+# macOS:
+awstbx completion bash > $(brew --prefix)/etc/bash_completion.d/awstbx
 ```
 
 ### Zsh
 
 ```bash
-mkdir -p ~/.zfunc
-awstbx completion zsh > ~/.zfunc/_awstbx
-# Ensure ~/.zfunc is in your fpath
+# Linux:
+awstbx completion zsh > "${fpath[1]}/_awstbx"
+
+# macOS:
+awstbx completion zsh > $(brew --prefix)/share/zsh/site-functions/_awstbx
 ```
 
 ### Fish
 
 ```bash
-mkdir -p ~/.config/fish/completions
 awstbx completion fish > ~/.config/fish/completions/awstbx.fish
 ```
 
@@ -154,6 +164,8 @@ awstbx completion fish > ~/.config/fish/completions/awstbx.fish
 ```powershell
 awstbx completion powershell > $PROFILE.CurrentUserAllHosts
 ```
+
+You will need to start a new shell for this setup to take effect.
 
 ## CLI Reference and Man Pages
 
@@ -196,11 +208,13 @@ make tag VERSION=v1.2.3
 ```
 
 Pushing a `v*` tag triggers the release workflow, which:
+
 - builds release artifacts with GoReleaser
 - creates/updates the GitHub Release using `git-cliff` notes
 - updates the Homebrew formula in `towardsthecloud/homebrew-tap`
 
 Required repository secret:
+
 - `HOMEBREW_TAP_GITHUB_TOKEN` with `repo` scope (used for cross-repo tap updates)
 
 ## Legacy Scripts
