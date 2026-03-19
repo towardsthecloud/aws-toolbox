@@ -26,15 +26,15 @@ archives:
 checksum:
   name_template: checksums.txt
 
-homebrew_casks:
+brews:
   - repository:
       owner: towardsthecloud
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Casks
+    directory: Formula
     homepage: https://github.com/towardsthecloud/aws-toolbox
     description: Unified CLI for AWS infrastructure automation
     license: MIT
-    binaries:
-      - awstbx
+    install: |
+      bin.install "awstbx"
 
