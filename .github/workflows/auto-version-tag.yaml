@@ -109,11 +109,11 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         env:
           NEW_VERSION: ${{ steps.version.outputs.new_version }}
-          PUSH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          PUSH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           set -eu
           if [ -z "${PUSH_TOKEN}" ]; then
-            echo "HOMEBREW_TAP_GITHUB_TOKEN is required to push tags and trigger Release workflow."
+            echo "HOMEBREW_TAP_TOKEN is required to push tags and trigger Release workflow."
             exit 1
           fi
 

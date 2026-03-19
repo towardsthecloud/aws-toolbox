@@ -30,11 +30,10 @@ brews:
   - repository:
       owner: towardsthecloud
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
     homepage: https://github.com/towardsthecloud/aws-toolbox
     description: Unified CLI for AWS infrastructure automation
     license: MIT
     install: |
       bin.install "awstbx"
-

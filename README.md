@@ -215,7 +215,7 @@ Pushing a `v*` tag triggers the release workflow, which:
 
 Required repository secret:
 
-- `HOMEBREW_TAP_GITHUB_TOKEN` with `repo` scope (used for cross-repo tap updates)
+- `HOMEBREW_TAP_TOKEN` with `repo` scope (used for cross-repo tap updates)
 
 ## Legacy Scripts
 
